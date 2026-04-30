@@ -1,0 +1,63 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query
+from app.config.database import get_db
+from app.services.assistant_service import AssistantService
+from sqlalchemy.ext.asyncio import AsyncSession as Session
+from app.schemas.User_schemas import UserCreate, UserUpdate, UserPaginationResponse, UserResponse
+import logging 
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+@router.post("/add", response_model = UserResponse)
+async def add_assistant(data: UserCreate, request: Request, db: Session = Depends(get_db)):
+    user_id = request.state.user.user_id
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(403, "You are not authorised to perform this operation")
+    assistant = await AssistantService.create_assistant(db, user_id, data)
+    return UserResponse.model_validate(assistant)
+
+@router.put("/update", response_model = UserResponse)
+async def update_assistant(data: UserUpdate, request: Request, db: Session = Depends(get_db)):
+    user_id = request.state.user.user_id
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(403, "You are not authorised to perform this operation")
+    assistant = await AssistantService.update_assistant(db, user_id, data)
+    return UserResponse.model_validate(assistant)
+
+
+
+@router.get("/me", response_model = UserResponse)
+async def get_me(request: Request, db: Session = Depends(get_db)):
+    user_id = request.state.user.user_id
+    assistant = await AssistantService.get_my_info(db, user_id)
+    if not assistant:
+        raise HTTPException(404, "Assistant data not found")
+    return UserResponse.model_validate(assistant)
+
+
+
+@router.get("/all", response_model=UserPaginationResponse)
+async def get_all(
+    request: Request, 
+    page: int = Query(1, ge=1), 
+    size: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db) 
+):
+    user_id = request.state.user.user_id
+    assistants, total_count = await AssistantService.get_all_paginated(db, user_id, page, size)
+    if not assistants:
+        raise HTTPException(status_code=404, detail="Assistant data not found")
+
+    total_pages = (total_count + size - 1) // size
+
+    return {
+        "items": assistants,
+        "total_count": total_count,
+        "page": page,
+        "size": size,
+        "total_pages": total_pages
+    }
+
+
+
