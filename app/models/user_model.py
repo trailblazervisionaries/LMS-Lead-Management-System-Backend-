@@ -1,7 +1,7 @@
 from sqlalchemy.orm import relationship
 from app.config.database import Base
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from datetime import datetime
 
 class Users(Base):
@@ -41,6 +41,21 @@ class Users(Base):
         stmt = select(Users).where(Users.user_id == user_id, Users.is_deleted == False, Users.is_active == True)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
+
+    @classmethod
+    async def get_by_id_with_address(cls, db, user_id):
+        stmt = (
+            select(Users)
+            .options(joinedload(Users.address)) 
+            .where(
+                Users.user_id == user_id, 
+                Users.is_deleted == False, 
+                Users.is_active == True
+            )
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
     
     @classmethod
     async def by_email(cls, db, email):
@@ -92,3 +107,8 @@ class OtpModel(Base):
         result = await db.execute(stmt)
         otp_data = result.scalar_one_or_none()
         return otp_data
+
+
+
+
+

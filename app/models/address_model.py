@@ -1,6 +1,6 @@
 from sqlalchemy.orm import relationship
 from app.config.database import Base
-from sqlalchemy import Column, Integer, Boolean, String, DateTime
+from sqlalchemy import Column, Integer, Boolean, String, DateTime, ForeignKey
 from datetime import datetime
 
 
@@ -8,7 +8,7 @@ class Address(Base):
     __tablename__ = "addresses"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, nullable=False)
+    user_id = Column(String, ForeignKey("users.user_id"), nullable=False)
     address_line_1 = Column(String, nullable=False)
     address_line_2 = Column(String)
     city = Column(String, nullable=False)

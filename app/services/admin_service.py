@@ -24,13 +24,15 @@ UPLOAD_DIR = "uploads"
 
 
 class AdminService:
-    
+
+    @classmethod
     async def create_admin(cls, db, data: UserCreate):
-        admin = Users.get_by_email(cls, db, data.email)
+        admin = await Users.get_by_email(db, data.email)
         if admin:
             raise HTTPException(500, "Email Already in database please try with another one or contact the team")
         try:
-            temp_password = generate_alphanumeric_password()
+            # temp_password = generate_alphanumeric_password()
+            temp_password = "qwerty123"
             hashed_password = hash_password(temp_password)
             new_admin = Users(
                 user_id = generate_id(data.name),
@@ -80,61 +82,48 @@ class AdminService:
             )       
         
 
-
     @classmethod
-    async def update_admin(cls, db, user_id: str, data: UserUpdate, request: Request):
-        admin = await Users.get_by_id(cls, db, user_id)
-
+    async def update_admin(cls, db, user_id: str, data: UserUpdate, request):
+        admin = await Users.get_by_id_with_address(db, user_id)
         if not admin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="AdminService: Admin not found"
-            )
+            raise HTTPException(status_code=404, detail="Admin not found")
 
         try:
-            if hasattr(data, "email") and data.email is not None:
-                admin.email = data.email
-
-            if hasattr(data, "role") and data.role is not None:
-                admin.role = data.role
+            update_dict = data.model_dump(exclude_unset=True)
             
-            if hasattr(data, "name") and data.name is not None:
-                admin.name = data.name
+            address_fields = {
+                "address_line_1", "address_line_2", "city", 
+                "province", "country", "postal_code"
+            }
 
-            admin_data = data.model_dump(
-                exclude_unset=True,
-                exclude={"address", "email", "role", "name"}
-            )
-
-            for field, value in admin_data.items():
-                setattr(admin, field, value)
-
-            if data.address:
-                address_data = data.address.model_dump(exclude_unset=True)
-
+            address_data = {k: v for k, v in update_dict.items() if k in address_fields}
+            
+            if address_data:
                 if admin.address:
-                    for field, value in address_data.items():
-                        setattr(admin.address, field, value)
+                    for key, value in address_data.items():
+                        setattr(admin.address, key, value)
                 else:
-                    admin.address = Address(
-                        user_id=admin.user_id,
-                        **address_data
-                    )
+                    admin.address = Address(user_id=admin.user_id, **address_data)
+
+            user_data = {k: v for k, v in update_dict.items() if k not in address_fields}
+            for key, value in user_data.items():
+                setattr(admin, key, value)
 
             await db.commit()
             await db.refresh(admin, ["address"])
-            logger.info("AdminService: Admin data updated successfully")
             return admin
 
-        except Exception:
+        except Exception as e:
             await db.rollback()
-            logger.error("AdminService: Error updating admin detials")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error updating admin details"
-            )
-        
+            logger.error(f"Update failed: {e}")
+            raise HTTPException(status_code=500, detail="Internal Update Error")
+
 
     @classmethod
     async def get_my_info(cls, db, user_id):
-        return await Users.get_my_info(cls, db, user_id)
+        return await Users.get_by_id_with_address(db, user_id)
+
+
+
+
+

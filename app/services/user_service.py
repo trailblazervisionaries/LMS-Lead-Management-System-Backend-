@@ -19,7 +19,7 @@ ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "24"))
 class UserServices:
     @classmethod
     async def UserLogin(cls, db: Session, email: str, password: str, response: Response):
-        user = await Users.get_by_email(cls, db, email)
+        user = await Users.get_by_email(db, email)
 
         if not user:
             logger.error("UserService: User with this email not found or user deactivated or deleted")
@@ -56,7 +56,7 @@ class UserServices:
     
     @classmethod
     async def update_user_password(cls, db: Session, user_id: str, new_password: str):
-        user = await Users.get_by_id(cls, db, user_id)
+        user = await Users.get_by_id(db, user_id)
         if not user:
             return None
         hashed_pw = hash_password(new_password)
@@ -69,11 +69,11 @@ class UserServices:
 
     @classmethod
     async def forgot_password(cls, db: Session, email: str):
-        user = await Users.get_by_email(cls, db, email)
+        user = await Users.get_by_email(db, email)
         if not user:
             return None
         new_otp = generate_otp()
-        existing = await OtpModel.by_email(cls, db, email)
+        existing = await OtpModel.by_email(db, email)
         if existing and existing.is_used == True:
             existing.otp_code = new_otp
             existing.is_used = False
@@ -88,10 +88,10 @@ class UserServices:
 
     @classmethod
     async def reset_password(cls, db: Session, email: str, otp_code: str, new_password: str):
-        user = await Users.get_by_email(cls, db, email)
+        user = await Users.get_by_email(db, email)
         if not user:
             return None
-        existing = await OtpModel.get_by_email(cls, db, email)
+        existing = await OtpModel.get_by_email(db, email)
         if not existing:
             logger.error("UserService: OTP not found with this email or already used")
             raise HTTPException(status_code=400, detail="UserService: OTP not found or already used")

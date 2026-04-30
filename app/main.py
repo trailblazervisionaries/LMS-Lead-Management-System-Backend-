@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes import APIMiddleware
 from app.config.database import create_tables
 from fastapi.staticfiles import StaticFiles
-from app.routes import (user_routes, admin_routes)
+from app.routes import (user_routes, admin_routes, assistant_route)
 import logging
 from app.logging_config import setup_logging
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -51,6 +51,7 @@ def read_root():
 # all the propject user route
 app.include_router(user_routes.router, prefix="/api/users", tags=["user"])
 app.include_router(admin_routes.router, prefix="/api/admin", tags=["admin"])
+app.include_router(assistant_route.router, prefix="/api/assistant", tags=["assistant"])
 
 
 

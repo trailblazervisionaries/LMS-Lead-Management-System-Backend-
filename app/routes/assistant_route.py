@@ -16,15 +16,15 @@ async def add_assistant(data: UserCreate, request: Request, db: Session = Depend
     assistant = await AssistantService.create_assistant(db, user_id, data)
     return UserResponse.model_validate(assistant)
 
-@router.put("/update", response_model = UserResponse)
-async def update_assistant(data: UserUpdate, request: Request, db: Session = Depends(get_db)):
+
+@router.put("/update/{assistant_id}", response_model = UserResponse)
+async def update_assistant(data: UserUpdate, assistant_id: str, request: Request, db: Session = Depends(get_db)):
     user_id = request.state.user.user_id
     role = request.state.user.role
     if role != "admin":
         raise HTTPException(403, "You are not authorised to perform this operation")
-    assistant = await AssistantService.update_assistant(db, user_id, data)
+    assistant = await AssistantService.update_assistant(db, assistant_id, data, request)
     return UserResponse.model_validate(assistant)
-
 
 
 @router.get("/me", response_model = UserResponse)
@@ -34,7 +34,6 @@ async def get_me(request: Request, db: Session = Depends(get_db)):
     if not assistant:
         raise HTTPException(404, "Assistant data not found")
     return UserResponse.model_validate(assistant)
-
 
 
 @router.get("/all", response_model=UserPaginationResponse)
@@ -58,6 +57,8 @@ async def get_all(
         "size": size,
         "total_pages": total_pages
     }
+
+
 
 
 

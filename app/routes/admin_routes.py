@@ -18,7 +18,7 @@ async def updated_admin(data: UserUpdate, request: Request, db: Session = Depend
     role = request.state.user.role
     if role != "admin":
         raise HTTPException(403, "You are not authorised to perform this operation")
-    admin = await AdminService.update_admin(db, user_id, data)
+    admin = await AdminService.update_admin(db, user_id, data, request)
     return UserResponse.model_validate(admin)
 
 

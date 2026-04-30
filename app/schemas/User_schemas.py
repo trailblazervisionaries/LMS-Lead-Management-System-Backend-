@@ -5,7 +5,7 @@ from datetime import datetime
 
 class AddressBase(BaseModel):
     address_line_1: str
-    address_line_2: str
+    address_line_2: str | None = None
     city: str
     province: str
     country: str
@@ -24,23 +24,41 @@ class UserCreate(AddressBase):
     class Config:
         from_attributes = True
 
-class UserUpdate(BaseModel):
+class UserUpdate(AddressBase):
     name: str | None = None
     role: str | None = None
     email: str | None = None
     profile_image: str | None = None
 
-class UserResponse(UserCreate):
+# class UserResponse(UserCreate):
+#     user_id: str
+#     is_active: bool
+#     is_deleted: bool
+#     created_at: datetime
+#     updated_at: datetime
+
+#     class Config:
+#         from_attributes = True
+
+class UserResponse(BaseModel):
     user_id: str
+    name: str
+    role: str
+    email: str
+    profile_image: str | None = None
     is_active: bool
     is_deleted: bool
     created_at: datetime
-    updated_at: datetime
+    # FIXED: updated_at can be None on creation, so make it Optional
+    updated_at: datetime | None = None 
+    
+    # FIXED: Nest the address schema to match the SQLAlchemy relationship
+    address: AddressBase | None = None
 
     class Config:
         from_attributes = True
 
-class UserPaginationResponse(UserResponse):
+class UserPaginationResponse(BaseModel):
     items: List[UserResponse]
     total_count: int
     page: int

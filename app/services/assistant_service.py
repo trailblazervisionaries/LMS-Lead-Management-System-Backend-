@@ -24,13 +24,14 @@ UPLOAD_DIR = "uploads"
 
 
 class AssistantService:
-    
+    @classmethod
     async def create_assistant(cls, db, admin_id, data: UserCreate):
-        assistant = Users.get_by_email(cls, db, data.email)
+        assistant = await Users.get_by_email(db, data.email)
         if assistant:
             raise HTTPException(500, "Email Already in database please try with another one or contact the team")
         try:
-            temp_password = generate_alphanumeric_password()
+            # temp_password = generate_alphanumeric_password()
+            temp_password = "qwerty123"
             hashed_password = hash_password(temp_password)
             new_assistant = Users(
                 user_id = generate_id(data.name),
@@ -81,64 +82,55 @@ class AssistantService:
             )       
         
 
-
     @classmethod
     async def update_assistant(cls, db, user_id: str, data: UserUpdate, request: Request):
-        assistant = await Users.get_by_id(cls, db, user_id)
-
+        assistant = await Users.get_by_id_with_address(db, user_id)
         if not assistant:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND, 
                 detail="AssistantService: Assistant not found"
             )
 
         try:
-            if hasattr(data, "email") and data.email is not None:
-                assistant.email = data.email
+            user_fields = {"name", "email"}
+            address_fields = {
+                "address_line_1", "address_line_2", "city", 
+                "province", "country", "postal_code"
+            }
 
-            if hasattr(data, "role") and data.role is not None:
-                assistant.role = data.role
+            update_dict = data.model_dump(exclude_unset=True)
+
+            for field in user_fields:
+                if field in update_dict:
+                    setattr(assistant, field, update_dict[field])
+
+            address_update_data = {k: v for k, v in update_dict.items() if k in address_fields}
             
-            if hasattr(data, "name") and data.name is not None:
-                assistant.name = data.name
-
-            admin_data = data.model_dump(
-                exclude_unset=True,
-                exclude={"address", "email", "role", "name"}
-            )
-
-            for field, value in admin_data.items():
-                setattr(assistant, field, value)
-
-            if data.address:
-                address_data = data.address.model_dump(exclude_unset=True)
-
-                if assistant.address:
-                    for field, value in address_data.items():
-                        setattr(assistant.address, field, value)
-                else:
-                    assistant.address = Address(
-                        user_id=assistant.user_id,
-                        **address_data
-                    )
+            if address_update_data:
+                if not assistant.address:
+                    assistant.address = Address(user_id=assistant.user_id)
+                
+                for field, value in address_update_data.items():
+                    setattr(assistant.address, field, value)
 
             await db.commit()
             await db.refresh(assistant, ["address"])
-            logger.info("AssistantService: assistant data updated successfully")
+            
+            logger.info("AssistantService: Assistant updated successfully")
             return assistant
 
-        except Exception:
+        except Exception as e:
             await db.rollback()
-            logger.error("AssistantService: Error updating assistant detials")
+            logger.error(f"AssistantService: Error updating assistant details: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
                 detail="Error updating assistant details"
             )
-        
+
 
     @classmethod
     async def get_my_info(cls, db, user_id):
-        return await Users.get_my_info(cls, db, user_id)
+        return await Users.get_by_id_with_address(db, user_id)
 
 
     @classmethod
