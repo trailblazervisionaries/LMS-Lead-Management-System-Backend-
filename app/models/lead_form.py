@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select, desc
 from sqlalchemy.orm import relationship
 from app.config.database import Base
 from datetime import datetime
@@ -16,6 +16,8 @@ class FormTemplate(Base):
     schema_definition = Column(JSON) 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
+
+    admin = relationship("Users", back_populates="form")
 
 
     @classmethod
@@ -41,6 +43,12 @@ class LeadResponse(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 
+    remarks = relationship(
+        "LeadRemarks", 
+        back_populates="lead", 
+        cascade="all, delete-orphan", 
+        order_by="desc(LeadRemarks.created_at)" # FIXED: String or name reference preferred here
+    )
 
     @classmethod
     async def get_form_by_id(cls, db, id, admin_id):
@@ -58,10 +66,11 @@ class LeadRemarks(Base):
     id  = Column(String, primary_key=True)
     for_lead = Column(String, ForeignKey("lead_responses.id"))
     remarks = Column(String, nullable = True)
-    is_deleted = Column(String, default = False)
+    is_deleted = Column(Boolean, default = False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
+    lead = relationship("LeadResponse", back_populates="remarks")
 
     @classmethod
     async def get_remarks(cls, db, id):
@@ -77,3 +86,15 @@ class LeadRemarks(Base):
         return result.scalars().all()
 
 
+
+
+class LeadAssignment(Base):
+    id = Column(String, primary_key = True)
+    lead_id = Column(String, ForeignKey("lead_responses.id"))
+    assign_to = Column(String, ForeignKey("users.user_id"))
+    is_deleted = Column(Boolean, default = False)
+    created_at = Column(DateTime, default = datetime.utcnow)
+    updated_at = Column(DateTime, default = datetime.utcnow)
+
+
+    assistant = relationship("Users", back_populates="assignment")

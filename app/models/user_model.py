@@ -26,6 +26,10 @@ class Users(Base):
         cascade="all, delete-orphan"
     )
 
+    form = relationship("FormTemplate", back_populates="admin")
+    assignment  = relationship("LeadAssignment", back_populates="assistant")
+
+
     @classmethod
     async def get_by_email(cls, db, email):
         stmt = select(Users).where(Users.email == email, Users.is_deleted == False, Users.is_active == True)
