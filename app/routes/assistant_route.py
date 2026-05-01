@@ -44,6 +44,9 @@ async def get_all(
     db: Session = Depends(get_db) 
 ):
     user_id = request.state.user.user_id
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(403, "You are not authorised to perform this operation")
     assistants, total_count = await AssistantService.get_all_paginated(db, user_id, page, size)
     if not assistants:
         raise HTTPException(status_code=404, detail="Assistant data not found")

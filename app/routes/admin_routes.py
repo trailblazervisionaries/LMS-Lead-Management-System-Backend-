@@ -28,7 +28,7 @@ async def get_me(request: Request, db: Session = Depends(get_db)):
     user_id = request.state.user.user_id
     admin = await AdminService.get_my_info(db, user_id)
     if not admin:
-        raise HTTPException(404, "Assistant data not found")
+        raise HTTPException(404, "Admin data not found")
     return UserResponse.model_validate(admin)
 
 

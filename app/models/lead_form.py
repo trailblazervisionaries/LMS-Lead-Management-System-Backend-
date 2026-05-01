@@ -1,18 +1,20 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select, desc
-from sqlalchemy.orm import relationship, selectinload
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select, desc, or_, and_
+from sqlalchemy.orm import relationship, selectinload, joinedload
 from app.config.database import Base
-from datetime import datetime
+from datetime import datetime, time
 
 class FormTemplate(Base):
     __tablename__ = "form_templates"
     id = Column(String, primary_key=True)
     admin_id = Column(String, ForeignKey("users.user_id"))
-    title = Column(String)
-    logo_link = Column(String, nullable = True)
-    form_color = Column(String, nullable = False)
-    page_color = Column(String, nullable = False)
-    border_color = Column(String, nullable = False)
+    # title = Column(String, nullable = True)
+    # logo_link = Column(String, nullable = True)
+    # form_color = Column(String, nullable = True)
+    # page_color = Column(String, nullable = True)
+    # border_color = Column(String, nullable = True)
     # Stores the structure: [{"label": "Age", "type": "number", "required": True}, ...]
+    is_active = Column(Boolean, default = True)
+    collected_from = Column(String, nullable = False, default = "website")
     schema_definition = Column(JSON) 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
@@ -21,8 +23,13 @@ class FormTemplate(Base):
 
 
     @classmethod
-    async def get_form_by_id(cls, db, id, admin_id):
-        stmt = select(FormTemplate).where(FormTemplate.id == id, FormTemplate.admin_id == admin_id)
+    async def get_form_by_id(cls, db, id):
+        stmt = select(FormTemplate).where(FormTemplate.id == id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+    
+    async def get_form_by_admin_id(cls, db, admin_id):
+        stmt = select(FormTemplate).where(FormTemplate.admin_id == admin_id, FormTemplate.is_active == True)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -56,27 +63,34 @@ class LeadResponse(Base):
         order_by="LeadStatusHistory.created_at"
     )
 
+
     @classmethod
-    async def get_lead_by_id(cls, db, id, admin_id):
-        stmt = select(LeadResponse).where(LeadResponse.id == id, LeadResponse.admin_id == admin_id)
+    async def get_lead(cls, db, admin_id, email = None, phone = None):
+        if email is not None:
+            stmt = select(LeadResponse).where(LeadResponse.admin_id == admin_id, LeadResponse.email == email, LeadResponse.is_deleted == False)
+        elif phone is not None:
+            stmt = select(LeadResponse).where(LeadResponse.admin_id == admin_id, LeadResponse.phone == phone, LeadResponse.is_deleted == False)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
 
-
-
-
 class LeadRemarks(Base):
-    __tablename__ = "lead_reamrks"
-
-    id  = Column(String, primary_key=True)
+    __tablename__ = "lead_remarks" # Fixed typo from "reamrks"
+    
+    id = Column(String, primary_key=True)
     for_lead = Column(String, ForeignKey("lead_responses.id"))
-    remarks = Column(String, nullable = True)
-    is_deleted = Column(Boolean, default = False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    remarks = Column(String, nullable=True)
+    # --- FOLLOW-UP FIELDS ---
+    # If this is null, it's just a note. If populated, it's a scheduled task.
+    next_follow_up_date = Column(DateTime, nullable=True) 
+    is_completed = Column(Boolean, default=False)
 
+    is_deleted = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
     lead = relationship("LeadResponse", back_populates="remarks")
+
 
     @classmethod
     async def get_remarks(cls, db, id):
@@ -90,7 +104,41 @@ class LeadRemarks(Base):
         stmt = select(LeadResponse).where(LeadResponse.id == id, LeadResponse.for_lead == for_lead, LeadResponse.is_deleted == False)
         result = await db.execute(stmt)
         return result.scalars().all()
+    
+    
+    @classmethod
+    async def get_today_follow_ups(db, admin_id: str = None, assistant_id: str = None):
+        today_start = datetime.combine(datetime.utcnow().date(), time.min)
+        today_end = datetime.combine(datetime.utcnow().date(), time.max)
 
+        # Start query from LeadRemarks
+        query = (
+            select(LeadRemarks)
+            .join(LeadResponse, LeadRemarks.for_lead == LeadResponse.id)
+            .options(joinedload(LeadRemarks.lead))
+        )
+
+        # Basic filters: Today's date, not completed, not deleted
+        filters = [
+            LeadRemarks.next_follow_up_date >= today_start,
+            LeadRemarks.next_follow_up_date <= today_end,
+            LeadRemarks.is_completed == False,
+            LeadRemarks.is_deleted == False
+        ]
+
+        if admin_id:
+            filters.append(LeadResponse.admin_id == admin_id)
+
+        if assistant_id:
+            query = query.join(LeadAssignment, LeadResponse.id == LeadAssignment.lead_id)
+            filters.append(LeadAssignment.assistant_id == assistant_id)
+            filters.append(LeadAssignment.is_deleted == False)
+
+        query = query.where(and_(*filters)).order_by(LeadRemarks.next_follow_up_date.asc())
+
+        result = await db.execute(query)
+        return result.scalars().unique().all()
+    
 
 class LeadStatusHistory(Base):
     __tablename__ = "lead_status_history"
@@ -120,6 +168,7 @@ class LeadStatusHistory(Base):
 
 
 
+
 class LeadAssignment(Base):
     __tablename__ = "lead_assignments"
 
@@ -140,7 +189,26 @@ class LeadAssignment(Base):
         stmt = select(LeadAssignment).where(LeadAssignment.lead_id == lead_id, LeadAssignment.is_deleted == False)
         result = await db.execute(stmt)
         return result.scalar_one_one_none()
+
+
+    @classmethod
+    async def get_unassigned_leads_by_admin(cls, db, admin_id: str):
+        stmt = (
+            select(LeadResponse)
+            .outerjoin(LeadAssignment, LeadResponse.id == LeadAssignment.lead_id)
+            .where(
+                LeadResponse.admin_id == admin_id,
+                LeadResponse.is_deleted == False,
+                or_(
+                    LeadAssignment.id == None,
+                    LeadAssignment.is_deleted == True
+                )
+            )
+        )
         
+        result = await db.execute(stmt)
+        return result.scalars().all()
+
 
 
     @classmethod

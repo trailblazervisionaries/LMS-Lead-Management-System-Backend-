@@ -57,6 +57,3 @@ app.include_router(assistant_route.router, prefix="/api/assistant", tags=["assis
 
 
 
-
-
-
