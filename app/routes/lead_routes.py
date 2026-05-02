@@ -1,0 +1,86 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from app.config.database import get_db
+from app.services.lead_service import LeadService
+from app.schemas.Lead_schemas import (
+    LeadCreate,
+    LeadResponseModel,
+    LeadStatusUpdate,
+    LeadPaginationResponse,
+    LeadAssignResponse,
+)
+from sqlalchemy.ext.asyncio import AsyncSession as Session
+import logging
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+
+@router.post("/add", response_model=LeadResponseModel)
+async def submit_lead(data: LeadCreate, db: Session = Depends(get_db)):
+    result = await LeadService.add_new_lead(db, data)
+    return result
+
+
+@router.get("/admin/leads", response_model=LeadPaginationResponse)
+async def list_admin_leads(
+    request: Request,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view leads")
+    result = await LeadService.get_leads_for_admin(db, request.state.user.user_id, page, size)
+    return result
+
+
+@router.post("/admin/assign-unassigned", response_model=LeadAssignResponse)
+async def assign_unassigned_leads(request: Request, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can assign leads")
+    result = await LeadService.assign_unassigned_leads(db, request.state.user.user_id)
+    return result
+
+
+@router.post("/assistant/leads/{lead_id}/update", response_model=LeadResponseModel)
+async def update_lead_status(lead_id: str, data: LeadStatusUpdate, request: Request, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role not in {"assistant", "admin"}:
+        raise HTTPException(status_code=403, detail="Only assistants or admins can update lead status")
+    result = await LeadService.update_lead(db, lead_id, request.state.user.user_id, role, data)
+    return result
+
+
+@router.get("/assistant/leads", response_model=LeadPaginationResponse)
+async def list_assistant_leads(
+    request: Request,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    role = request.state.user.role
+    if role != "assistant":
+        raise HTTPException(status_code=403, detail="Only assistants can list assigned leads")
+    return await LeadService.get_leads_for_assistant(db, request.state.user.user_id, page, size)
+
+
+@router.get("/assistant/followups", response_model=list[dict])
+async def get_assistant_followups(request: Request, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role != "assistant":
+        raise HTTPException(status_code=403, detail="Only assistants can read followups")
+    followups = await LeadService.get_todays_followups(db, assistant_id=request.state.user.user_id)
+    return followups
+
+
+@router.get("/lead/{lead_id}/history", response_model=list[dict])
+async def get_lead_history(lead_id: str, request: Request, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role not in {"assistant", "admin"}:
+        raise HTTPException(status_code=403, detail="Only assistants or admins can view lead history")
+    history = await LeadService.get_lead_history(db, lead_id)
+    if history is None:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return history

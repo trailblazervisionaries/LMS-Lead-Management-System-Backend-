@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes import APIMiddleware
 from app.config.database import create_tables
 from fastapi.staticfiles import StaticFiles
-from app.routes import (user_routes, admin_routes, assistant_route)
+from app.routes import (user_routes, admin_routes, assistant_route, lead_routes, form_routes)
 import logging
 from app.logging_config import setup_logging
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -48,10 +48,12 @@ def read_root():
     return {"message": "Welcome to RMS Backend :)"} 
 
 
-# all the propject user route
+# all the project user route
 app.include_router(user_routes.router, prefix="/api/users", tags=["user"])
 app.include_router(admin_routes.router, prefix="/api/admin", tags=["admin"])
 app.include_router(assistant_route.router, prefix="/api/assistant", tags=["assistant"])
+app.include_router(form_routes.router, prefix="/api/form", tags=["Lead-Form"])
+app.include_router(lead_routes.router, prefix="/api/lead", tags=["lead"])
 
 
 

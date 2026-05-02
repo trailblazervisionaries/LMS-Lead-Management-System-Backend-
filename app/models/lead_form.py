@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select, desc, or_, and_
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select, or_, and_, false
 from sqlalchemy.orm import relationship, selectinload, joinedload
 from app.config.database import Base
 from datetime import datetime, time
@@ -7,34 +7,31 @@ class FormTemplate(Base):
     __tablename__ = "form_templates"
     id = Column(String, primary_key=True)
     admin_id = Column(String, ForeignKey("users.user_id"))
-    # title = Column(String, nullable = True)
-    # logo_link = Column(String, nullable = True)
-    # form_color = Column(String, nullable = True)
-    # page_color = Column(String, nullable = True)
-    # border_color = Column(String, nullable = True)
     # Stores the structure: [{"label": "Age", "type": "number", "required": True}, ...]
     is_active = Column(Boolean, default = True)
-    collected_from = Column(String, nullable = False, default = "website")
     schema_definition = Column(JSON) 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 
     admin = relationship("Users", back_populates="form")
 
+    @classmethod
+    async def get_form_by_id(cls, db, form_id):
+        stmt = select(FormTemplate).where(FormTemplate.id == form_id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
     @classmethod
-    async def get_form_by_id(cls, db, id):
-        stmt = select(FormTemplate).where(FormTemplate.id == id)
-        result = await db.execute(stmt)
-        return result.scalar_one_or_none()
-    
-    async def get_form_by_admin_id(cls, db, admin_id):
+    async def get_active_forms_by_admin_id(cls, db, admin_id):
         stmt = select(FormTemplate).where(FormTemplate.admin_id == admin_id, FormTemplate.is_active == True)
         result = await db.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.scalars().all()
 
-
-
+    @classmethod
+    async def get_all_forms_by_admin_id(cls, db, admin_id):
+        stmt = select(FormTemplate).where(FormTemplate.admin_id == admin_id)
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
 
 
@@ -44,6 +41,7 @@ class LeadResponse(Base):
     id = Column(String, primary_key=True)
     template_id = Column(String, ForeignKey("form_templates.id"))
     admin_id = Column(String, ForeignKey("users.user_id"))
+    collected_from = Column(String, nullable = False, default = "website")
     # Stores the answers: {"Age": 25, "Name": "John"}
     submitted_data = Column(JSON)
     is_deleted = Column(Boolean, default = False)
@@ -65,13 +63,50 @@ class LeadResponse(Base):
 
 
     @classmethod
-    async def get_lead(cls, db, admin_id, email = None, phone = None):
-        if email is not None:
-            stmt = select(LeadResponse).where(LeadResponse.admin_id == admin_id, LeadResponse.email == email, LeadResponse.is_deleted == False)
-        elif phone is not None:
-            stmt = select(LeadResponse).where(LeadResponse.admin_id == admin_id, LeadResponse.phone == phone, LeadResponse.is_deleted == False)
+    async def get_lead(cls, db, admin_id, email=None, phone=None):
+        if email is None and phone is None:
+            return None
+
+        stmt = select(LeadResponse).where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
+        filters = []
+        if email:
+            filters.append(LeadResponse.submitted_data["email"].astext == email)
+        if phone:
+            filters.append(LeadResponse.submitted_data["phone"].astext == phone)
+
+        stmt = stmt.where(or_(*filters))
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
+
+    @classmethod
+    async def get_lead_by_id(cls, db, lead_id):
+        stmt = select(LeadResponse).where(LeadResponse.id == lead_id, LeadResponse.is_deleted == False)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    @classmethod
+    async def get_all_by_admin_id(cls, db, admin_id, page=1, size=20):
+        offset = (page - 1) * size
+        stmt = (
+            select(LeadResponse)
+            .where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
+            .order_by(LeadResponse.created_at.desc())
+            .offset(offset)
+            .limit(size)
+        )
+        result = await db.execute(stmt)
+        items = result.scalars().all()
+
+        count_stmt = select(func.count(LeadResponse.id)).where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
+        total_count = (await db.execute(count_stmt)).scalar()
+
+        return {
+            "items": items,
+            "total": total_count or 0,
+            "page": page,
+            "size": size,
+            "total_pages": (total_count + size - 1) // size if total_count else 0,
+        }
 
 
 class LeadRemarks(Base):
@@ -93,15 +128,15 @@ class LeadRemarks(Base):
 
 
     @classmethod
-    async def get_remarks(cls, db, id):
-        stmt = select(LeadResponse).where(LeadResponse.id == id, LeadResponse.is_deleted == False)
+    async def get_remarks(cls, db, lead_id):
+        stmt = select(LeadRemarks).where(LeadRemarks.for_lead == lead_id, LeadRemarks.is_deleted == False)
         result = await db.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.scalars().all()
     
 
     @classmethod
-    async def get_all_remarks(cls, db, id, for_lead):
-        stmt = select(LeadResponse).where(LeadResponse.id == id, LeadResponse.for_lead == for_lead, LeadResponse.is_deleted == False)
+    async def get_all_remarks(cls, db, lead_id):
+        stmt = select(LeadRemarks).where(LeadRemarks.for_lead == lead_id, LeadRemarks.is_deleted == False)
         result = await db.execute(stmt)
         return result.scalars().all()
     
@@ -188,7 +223,7 @@ class LeadAssignment(Base):
     async def get_assistant_by_lead_id(cls, db, lead_id):
         stmt = select(LeadAssignment).where(LeadAssignment.lead_id == lead_id, LeadAssignment.is_deleted == False)
         result = await db.execute(stmt)
-        return result.scalar_one_one_none()
+        return result.scalar_one_or_none()
 
 
     @classmethod
@@ -251,6 +286,10 @@ class LeadAssignment(Base):
             "page": page,
             "size": size
         }
+
+
+
+
 
 
 
