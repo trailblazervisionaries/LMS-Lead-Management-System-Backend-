@@ -84,3 +84,26 @@ async def get_lead_history(lead_id: str, request: Request, db: Session = Depends
     if history is None:
         raise HTTPException(status_code=404, detail="Lead not found")
     return history
+
+
+@router.delete("/assistant/{lead_d}")
+async def delete_lead_data(lead_id: str, request: Request, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role not in {"assistant", "admin"}:
+        raise HTTPException(status_code=403, detail="Only admin or Assistant can delete the lead")
+    result = await LeadService.delete_lead_permanentaly(db, lead_id)
+    return result
+
+
+@router.delete("assistant/mark-del/{lead_id}")
+async def mark_delete_lead_data(lead_id: str, request: Request, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role not in {"assistant", "admin"}:
+        raise HTTPException(status_code = 403, detail = "Only admin, assistant can access this route ok")
+    result = await LeadService.lead_mark_deleted(db, lead_id)
+    return result
+
+
+
+
+

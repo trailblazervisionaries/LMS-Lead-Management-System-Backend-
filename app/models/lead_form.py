@@ -83,6 +83,12 @@ class LeadResponse(Base):
         stmt = select(LeadResponse).where(LeadResponse.id == lead_id, LeadResponse.is_deleted == False)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
+    
+    @classmethod
+    async def get_by_id(cls, db, lead_id):
+        stmt = select(LeadResponse).where(LeadResponse.lead_id == lead_id)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
     @classmethod
     async def get_all_by_admin_id(cls, db, admin_id, page=1, size=20):

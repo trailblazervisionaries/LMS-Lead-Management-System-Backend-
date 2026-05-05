@@ -43,7 +43,51 @@ class FormService:
         await db.commit()
         await db.refresh(existing_template)
         return existing_template
+    
+    
+    @classmethod
+    async def mark_form_active(cls, db: Session, template_id: str, admin_id: str):
+        template = await FormTemplate.get_form_by_id(db, template_id)
+        if not template or template.admin_id != admin_id:
+            raise HTTPException(status_code=404, detail="Form template not found")
+        template.is_active = True
+        await db.commit()
+        await db.refresh(template)
+        return template
+    
 
+    @classmethod
+    async def mark_form_deactive(cls, db: Session, template_id: str, admin_id: str):
+        template = await FormTemplate.get_form_by_id(db, template_id)
+        if not template or template.admin_id != admin_id:
+            raise HTTPException(status_code=404, detail="Form template not found")
+        template.is_active = False
+        await db.commit()
+        await db.refresh(template)
+        return template
+    
+
+    @classmethod
+    async def delete_form_by_admin_id(cls, db: Session, template_id: str, admin_id: str):
+        template = await FormTemplate.get_form_by_id(db, template_id)
+        if not template or template.admin_id != admin_id:
+            raise HTTPException(status_code=404, detail="Form template not found")
+        await db.delete(template)
+        await db.commit()
+        return {"detail": f"Form template {template_id} deleted successfully"}
+    
+    
+    @classmethod
+    async def delete_form_by_template_id(cls, db: Session, template_id: str):
+        template = await FormTemplate.get_form_by_id(db, template_id)
+        if not template:
+            raise HTTPException(status_code=404, detail="Form template not found")
+        await db.delete(template)
+        await db.commit()
+        return {"detail": f"Form template {template_id} deleted successfully"}
+
+
+#  generate the integration snippets ========= 
     @classmethod
     async def generate_embed_snippet(cls, db: Session, template_id: str):
         template = await FormTemplate.get_form_by_id(db, template_id)
@@ -114,34 +158,9 @@ class FormService:
         """
         return {"template_id": template.id, "snippet": snippet}
 
-    @classmethod
-    async def mark_form_active(cls, db: Session, template_id: str, admin_id: str):
-        template = await FormTemplate.get_form_by_id(db, template_id)
-        if not template or template.admin_id != admin_id:
-            raise HTTPException(status_code=404, detail="Form template not found")
-        template.is_active = True
-        await db.commit()
-        await db.refresh(template)
-        return template
 
-    @classmethod
-    async def mark_form_deactive(cls, db: Session, template_id: str, admin_id: str):
-        template = await FormTemplate.get_form_by_id(db, template_id)
-        if not template or template.admin_id != admin_id:
-            raise HTTPException(status_code=404, detail="Form template not found")
-        template.is_active = False
-        await db.commit()
-        await db.refresh(template)
-        return template
 
-    @classmethod
-    async def delete_form_by_admin_id(cls, db: Session, template_id: str, admin_id: str):
-        template = await FormTemplate.get_form_by_id(db, template_id)
-        if not template or template.admin_id != admin_id:
-            raise HTTPException(status_code=404, detail="Form template not found")
-        await db.delete(template)
-        await db.commit()
-        return {"detail": f"Form template {template_id} deleted successfully"}
+
 
 
 

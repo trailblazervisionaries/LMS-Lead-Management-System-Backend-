@@ -57,3 +57,33 @@ async def get_template_snippet(template_id: str, request: Request, db: Session =
         raise HTTPException(status_code=403, detail="Only admins can fetch snippet")
     snippet = await FormService.generate_embed_snippet(db, template_id)
     return snippet
+
+
+@router.delete("/template/{template_id}")
+async def delete_template(request: Request, template_id: str, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can perform this operations.")
+    result = await FormService.delete_form_by_template_id(db, template_id)
+    return result
+
+
+@router.put("/template/{template_id}")
+async def activate_template(request: Request, template_id: str, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    admin_id = request.state.user.user_id
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can perform this operations.")
+    result = await FormService.mark_form_active(db, template_id, admin_id)
+    return result
+
+
+@router.put("/template/{template_id}")
+async def deactivate_template(request: Request, template_id: str, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    admin_id = request.state.user.user_id
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can perform this operations.")
+    result = await FormService.mark_form_deactive(db, template_id, admin_id)
+    return result
+

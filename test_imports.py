@@ -21,8 +21,11 @@ async def test_imports():
         print("✓ Lead models imported successfully")
 
         # Test schemas
-        from app.schemas.Lead_schemas import FormTemplateCreate, LeadCreate
+        from app.schemas.Lead_schemas import LeadCreate
         print("✓ Lead schemas imported successfully")
+
+        from app.schemas.form_schemas import FormTemplateCreate
+        print("✓ Form schemas imported successfully")
 
         # Test services
         from app.services.form_service import FormService
@@ -45,3 +48,8 @@ async def test_imports():
 if __name__ == "__main__":
     success = asyncio.run(test_imports())
     sys.exit(0 if success else 1)
+
+
+
+
+    

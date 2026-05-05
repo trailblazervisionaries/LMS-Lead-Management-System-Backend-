@@ -227,6 +227,25 @@ class LeadService:
         await db.commit()
         await db.refresh(lead)
         return lead
+    
+    @classmethod
+    async def delete_lead_permanentaly(cls, db, lead_id):
+        lead = await LeadResponse.get_lead_by_id(db, lead_id)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        await db.delete(lead)
+        await db.commit()
+        return {"detail": f"Lead with id {lead_id} deleted successfully"}
+    
+    @classmethod
+    async def lead_mark_deleted(cls, db, lead_id):
+        lead = await LeadResponse.get_by_id(db, lead_id)
+        if not lead:
+            raise HTTPException(status_code=404, detail="lead not found")
+        await db.is_deleted == True
+        await db.commit()
+        return {"detail": f"Lead with id {lead_id} deleted successfully"}
+
 
     @classmethod
     async def get_todays_followups(cls, db: Session, assistant_id: str = None, admin_id: str = None):
