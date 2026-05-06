@@ -50,12 +50,14 @@ class APIMiddleware(BaseHTTPMiddleware):
         # Add paths that don't need authentication
         skip_paths = [
             "/api/admin/public",
+            "/api/form/public",
             "/api/users/public",
             "/api/lead/add",
             "/send-test-email",
             "/docs",
             "/health",
             "/uploads/",
+            "/favicon.ico",
         ]
         return any(path.startswith(skip_path) for skip_path in skip_paths)
 

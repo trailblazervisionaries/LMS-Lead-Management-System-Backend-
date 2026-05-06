@@ -1,12 +1,16 @@
 from fastapi import HTTPException
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.core.utils_functions import generate_id
 from app.models.lead_form import FormTemplate
 import logging
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
-
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL")
 class FormService:
 
     @classmethod
@@ -89,74 +93,193 @@ class FormService:
 
 #  generate the integration snippets ========= 
     @classmethod
-    async def generate_embed_snippet(cls, db: Session, template_id: str):
+    async def generate_embed_snippet(cls, db: Session, admin_id: str, template_id: str):
+
+        snippet = """
+    <div id="lms-container-{id}">
+        <iframe
+            id="lms-iframe-{id}"
+            src="http://localhost:8000/api/form/public/embed/{admin_id}/{id}"
+            style="border:none; border-radius:10px; width:100%; height:0; transition: height 0.25s ease;"
+            loading="lazy"
+        ></iframe>
+    </div>
+    """.replace("{id}", template_id).replace("{admin_id}", admin_id).strip()
+
+        # return {
+        #     "admin_id": admin_id,
+        #     "template_id": template_id,
+        #     "iframe_snippet": snippet
+        # }
+        return PlainTextResponse(content=snippet)
+
+
+    @classmethod
+    def generate_fields_html(cls, fields):
+        fields = sorted(fields, key=lambda x: x.get("order", 0))
+        html = ""
+
+        for f in fields:
+            full_class = "full" if f.get("width") == "full" else ""
+
+            required = "required" if f.get("required") else ""
+            placeholder = f.get("placeholder", "")
+
+            if f["type"] == "textarea":
+                input_html = f"""
+                    <textarea 
+                        name="{f["name"]}" 
+                        placeholder="{placeholder}" 
+                        {required}
+                    ></textarea>
+                """
+            else:
+                input_html = f"""
+                    <input 
+                        type="{f["type"]}" 
+                        name="{f["name"]}" 
+                        placeholder="{placeholder}" 
+                        {required}
+                    />
+                """
+
+            html += f"""
+            <div class="{full_class}">
+                <label>{f.get("label")}</label>
+                {input_html}
+            </div>
+            """
+
+        return html
+    
+
+    @classmethod
+    async def render_embed_form(cls, db: Session, admin_id: str, template_id: str):
         template = await FormTemplate.get_form_by_id(db, template_id)
-        if not template:
-            raise HTTPException(status_code=404, detail="Form template not found")
 
-        snippet = f"""
-        <div id=\"lms-lead-form-{template.id}\"></div>
+        if not template or not template.is_active:
+            return HTMLResponse("<h3>Form not found</h3>", status_code=404)
+
+        schema = template.schema_definition
+
+        return HTMLResponse(f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8" />
+            <title>{schema.get("form_name")}</title>
+
+            <style>
+                body {{
+                    margin: 0;
+                    font-family: Arial;
+                    background: {schema.get("page_style", {}).get("background_color", "#fff")};
+                    padding: 20px;
+                }}
+
+                .form-container {{
+                    max-width: 600px;
+                    margin: auto;
+                    background: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                }}
+
+                form {{
+                    display: grid;
+                    grid-template-columns: {"1fr 1fr" if schema.get("layout", {}).get("columns") == 2 else "1fr"};
+                    gap: {schema.get("layout", {}).get("field_spacing", 10)}px;
+                }}
+
+                .full {{
+                    grid-column: 1 / -1;
+                }}
+
+                input, textarea {{
+                    width: 100%;
+                    padding: 8px;
+                    border: 1px solid #ccc;
+                    border-radius: 6px;
+                }}
+
+                button {{
+                    background: {schema.get("submit_button", {}).get("color", "#2563EB")};
+                    color: {schema.get("submit_button", {}).get("text_color", "#fff")};
+                    padding: 10px;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                }}
+            </style>
+        </head>
+
+        <body>
+            <div class="form-container">
+                <form id="leadForm">
+                    {cls.generate_fields_html(schema.get("fields", []))}
+
+                    <button type="submit" class="full">
+                        {schema.get("submit_button", {}).get("text", "Submit")}
+                    </button>
+                </form>
+
+                <div id="msg"></div>
+            </div>
+
         <script>
-        (async function() {{
-        const backendUrl = "{{BACKEND_BASE_URL}}";
-        const target = document.getElementById('lms-lead-form-{template.id}');
+        const form = document.getElementById("leadForm");
 
-        const response = await fetch(`${{backendUrl}}/api/lead/template/{template.id}`);
-        if (!response.ok) {{
-            target.innerHTML = '<p>Unable to load lead form.</p>';
-            return;
+        // 🔥 Send height with iframeId
+        function sendHeight() {{
+            const height = document.body.scrollHeight;
+
+            window.parent.postMessage({{
+                type: "LMS_IFRAME_RESIZE",
+                height: height,
+                iframeId: window.frameElement?.id
+            }}, "*");
         }}
 
-        const formDefinition = await response.json();
-        const form = document.createElement('form');
-        form.id = 'lms-form-{template.id}';
+        form.onsubmit = async function(e) {{
+            e.preventDefault();
 
-        const fields = formDefinition.schema_definition || [];
-        fields.forEach(field => {{
-            const wrapper = document.createElement('div');
-            const label = document.createElement('label');
-            label.textContent = field.label || field.name || 'Field';
-            wrapper.appendChild(label);
+            const formData = new FormData(form);
+            formData.append("template_id", "{template.id}");
+            formData.append("collected_from", document.referrer);
 
-            const input = document.createElement(field.type === 'textarea' ? 'textarea' : 'input');
-            input.name = field.name || field.label?.toLowerCase().replace(/\s+/g, '_');
-            input.required = field.required || false;
-            if (field.type && field.type !== 'textarea') {{
-            input.type = field.type;
+            try {{
+                const res = await fetch("/api/lead/add", {{
+                    method: "POST",
+                    body: formData
+                }});
+
+                const msg = document.getElementById("msg");
+
+                if (res.ok) {{
+                    msg.innerHTML = "<p style='color:green'>Submitted successfully</p>";
+                    form.reset();
+                }} else {{
+                    msg.innerHTML = "<p style='color:red'>Submission failed</p>";
+                }}
+
+            }} catch (err) {{
+                console.error(err);
             }}
-            wrapper.appendChild(input);
-            form.appendChild(wrapper);
-        }});
 
-        const button = document.createElement('button');
-        button.type = 'submit';
-        button.textContent = 'Submit';
-        form.appendChild(button);
+            sendHeight();
+        }};
 
-        form.addEventListener('submit', async event => {{
-            event.preventDefault();
-            const data = {{ template_id: '{template.id}', submitted_data: {{}} }};
-            new FormData(form).forEach((value, key) => {{ data.submitted_data[key] = value; }});
+        // initial height
+        window.addEventListener("load", sendHeight);
 
-            const submitResponse = await fetch(`${{backendUrl}}/api/lead/add`, {{
-            method: 'POST',
-            headers: {{ 'Content-Type': 'application/json' }},
-            body: JSON.stringify(data),
-            }});
-
-            if (submitResponse.ok) {{
-            target.innerHTML = '<p>Thank you! Your lead has been submitted.</p>';
-            }} else {{
-            const error = await submitResponse.json();
-            target.innerHTML = `<p>Error: ${{error.detail || 'Unable to submit form.'}}</p>`;
-            }}
-        }});
-
-        target.appendChild(form);
-        }})();
+        // dynamic height observer
+        const observer = new ResizeObserver(sendHeight);
+        observer.observe(document.body);
         </script>
-        """
-        return {"template_id": template.id, "snippet": snippet}
+
+        </body>
+        </html>
+        """)
 
 
 

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi.responses import HTMLResponse
 from app.config.database import get_db
 from app.services.form_service import FormService
 from app.schemas.form_schemas import (
@@ -49,14 +50,19 @@ async def list_templates(request: Request, db: Session = Depends(get_db)):
     templates = await FormService.get_templates_by_admin(db, request.state.user.user_id)
     return templates
 
-
-@router.get("/template/{template_id}/snippet", response_model=FormSnippetResponse)
+#  get snippet for the data
+@router.get("/template/{template_id}/snippet")
 async def get_template_snippet(template_id: str, request: Request, db: Session = Depends(get_db)):
     role = request.state.user.role
+    admin_id = request.state.user.user_id
     if role != "admin":
         raise HTTPException(status_code=403, detail="Only admins can fetch snippet")
-    snippet = await FormService.generate_embed_snippet(db, template_id)
+    snippet = await FormService.generate_embed_snippet(db, admin_id, template_id)
     return snippet
+
+@router.get("/public/embed/{admin_id}/{template_id}", response_class=HTMLResponse)
+async def make_embed_form_render(template_id: str, admin_id: str, db: Session = Depends(get_db)):
+    return await FormService.render_embed_form(db, admin_id, template_id)
 
 
 @router.delete("/template/{template_id}")

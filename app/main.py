@@ -18,7 +18,8 @@ app = FastAPI()
 app.add_middleware(APIMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173","http://localhost:3000", "http://127.0.0.1:3000"],  
+    # allow_origins=["http://localhost:5173", "http://127.0.0.1:5173","http://localhost:3000", "http://127.0.0.1:3000"],  
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],  
     allow_headers=["*"],   
@@ -45,7 +46,8 @@ def health():
 
 @app.get("/health")
 def read_root():
-    return {"message": "Welcome to RMS Backend :)"} 
+    return {"message": "Welcome to Lead Management Backend :)"} 
+
 
 
 # all the project user route

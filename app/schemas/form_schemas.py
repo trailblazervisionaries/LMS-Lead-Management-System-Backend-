@@ -4,15 +4,14 @@ from datetime import datetime
 
 
 class FormTemplateCreate(BaseModel):
-    schema_definition: List[dict]
+    schema_definition: dict
 
     class Config:
         from_attributes = True
 
 
 class FormTemplateUpdate(BaseModel):
-    collected_from: Optional[str] = None
-    schema_definition: Optional[List[dict]] = None
+    schema_definition: Optional[dict] = None
     is_active: Optional[bool] = None
 
     class Config:
@@ -22,8 +21,7 @@ class FormTemplateUpdate(BaseModel):
 class FormTemplateResponse(BaseModel):
     id: str
     admin_id: str
-    collected_from: str
-    schema_definition: List[dict]
+    schema_definition: Optional[dict]
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None

@@ -1,7 +1,7 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select, or_, and_, false
-from sqlalchemy.orm import relationship, selectinload, joinedload
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select, or_, and_, false, case
+from sqlalchemy.orm import relationship, selectinload, joinedload, aliased
 from app.config.database import Base
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 class FormTemplate(Base):
     __tablename__ = "form_templates"
@@ -34,7 +34,7 @@ class FormTemplate(Base):
         return result.scalars().all()
 
 
-
+# status ->> Converted, Pending, InDiscussion, Rejected
 
 class LeadResponse(Base):
     __tablename__ = "lead_responses"
@@ -113,6 +113,173 @@ class LeadResponse(Base):
             "size": size,
             "total_pages": (total_count + size - 1) // size if total_count else 0,
         }
+    
+
+    @classmethod
+    async def get_time_based_stats(cls, db, admin_id=None, assistant_id=None):
+
+        now = datetime.utcnow()
+
+        ranges = {
+            "today": datetime(now.year, now.month, now.day),
+            "week": now - timedelta(days=7),
+            "month": now - timedelta(days=30),
+        }
+
+        # Latest Status Subquery
+        # -------------------------------
+        latest_status_subq = (
+            select(
+                LeadStatusHistory.lead_id,
+                LeadStatusHistory.status,
+                func.row_number()
+                .over(
+                    partition_by=LeadStatusHistory.lead_id,
+                    order_by=LeadStatusHistory.created_at.desc(),
+                )
+                .label("rn"),
+            )
+            .where(LeadStatusHistory.is_deleted == False)
+            .subquery()
+        )
+
+        latest_status = aliased(latest_status_subq)
+
+        final_result = {}
+
+        # Loop over time ranges
+        # -------------------------------
+        for key, start_date in ranges.items():
+
+            query = select(
+                func.count(cls.id).label("total_leads"),
+
+                func.count(case((latest_status.c.status == "Converted", 1))).label("converted"),
+
+                func.count(case((latest_status.c.status == "Pending", 1))).label("pending"),
+
+                func.count(case((latest_status.c.status == "InDiscussion", 1))).label("discussion"),
+
+                func.count(case((latest_status.c.status == "Rejected", 1))).label("rejected"),
+            )
+
+            query = query.join(
+                latest_status,
+                (cls.id == latest_status.c.lead_id) & (latest_status.c.rn == 1),
+                isouter=True,
+            )
+
+            # Time filter
+            query = query.where(cls.created_at >= start_date)
+
+            # Admin filter
+            if admin_id:
+                query = query.where(cls.admin_id == admin_id)
+
+            # Assistant filter
+            if assistant_id:
+                query = query.join(LeadAssignment).where(
+                    LeadAssignment.assistant_id == assistant_id
+                )
+
+            result = await db.execute(query)
+            stats = result.mappings().first()
+
+            final_result[key] = {
+                "total_leads": stats["total_leads"] or 0,
+                "converted": stats["converted"] or 0,
+                "pending": stats["pending"] or 0,
+                "discussion": stats["discussion"] or 0,
+                "rejected": stats["rejected"] or 0,
+                "conversion_rate" : stats["converted"] / stats["total_leads"] * 100
+            }
+
+        return final_result
+
+    # @classmethod
+    # async def get_lead_stats(cls, db, admin_id=None, assistant_id=None):
+
+    #     latest_status_subq = (
+    #         select(
+    #             LeadStatusHistory.lead_id,
+    #             LeadStatusHistory.status,
+    #             func.row_number()
+    #             .over(
+    #                 partition_by=LeadStatusHistory.lead_id,
+    #                 order_by=LeadStatusHistory.created_at.desc(),
+    #             )
+    #             .label("rn"),
+    #         )
+    #         .where(LeadStatusHistory.is_deleted == False)
+    #         .subquery()
+    #     )
+
+    #     latest_status = aliased(latest_status_subq)
+
+    #     query = select(
+    #         func.count(cls.id).label("total_leads"),
+
+    #         func.count(
+    #             case((latest_status.c.status == "Converted", 1))
+    #         ).label("total_converted"),
+
+    #         func.count(
+    #             case((latest_status.c.status == "Pending", 1))
+    #         ).label("total_pending"),
+
+    #         func.count(
+    #             case((latest_status.c.status == "InDiscussion", 1))
+    #         ).label("total_in_discussion"),
+
+    #         func.count(
+    #             case((latest_status.c.status == "Rejected", 1))
+    #         ).label("total_rejected"),
+    #     )
+
+    #     query = query.join(
+    #         latest_status,
+    #         (cls.id == latest_status.c.lead_id) & (latest_status.c.rn == 1),
+    #         isouter=True,
+    #     )
+
+    #     # 4. Filter by Admin / Assistant
+    #     # -------------------------------
+    #     if admin_id:
+    #         query = query.where(cls.admin_id == admin_id)
+
+    #     if assistant_id:
+    #         query = query.join(LeadAssignment).where(
+    #             LeadAssignment.assistant_id == assistant_id
+    #         )
+
+    #     # 5. Not Assigned Count
+    #     # -------------------------------
+    #     not_assigned_subq = (
+    #         select(func.count(cls.id))
+    #         .select_from(cls)
+    #         .outerjoin(LeadAssignment, cls.id == LeadAssignment.lead_id)
+    #         .where(LeadAssignment.lead_id == None)
+    #     )
+
+    #     if admin_id:
+    #         not_assigned_subq = not_assigned_subq.where(cls.admin_id == admin_id)
+
+    #     result = await db.execute(query)
+    #     stats = result.mappings().first()
+
+    #     # Fetch not assigned separately
+    #     not_assigned_result = await db.execute(not_assigned_subq)
+    #     total_not_assigned = not_assigned_result.scalar()
+
+    #     return {
+    #         "total_leads": stats["total_leads"] or 0,
+    #         "total_converted": stats["total_converted"] or 0,
+    #         "total_pending": stats["total_pending"] or 0,
+    #         "total_in_discussion": stats["total_in_discussion"] or 0,
+    #         "total_rejected": stats["total_rejected"] or 0,
+    #         "total_not_assigned": total_not_assigned or 0,
+    #     }
+    
 
 
 class LeadRemarks(Base):
