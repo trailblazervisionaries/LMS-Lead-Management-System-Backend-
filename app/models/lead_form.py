@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select, or_, and_, false, case
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func, select, or_, and_, false, case, cast
 from sqlalchemy.orm import relationship, selectinload, joinedload, aliased
 from app.config.database import Base
 from datetime import datetime, time, timedelta
@@ -62,19 +62,31 @@ class LeadResponse(Base):
     )
 
 
+
     @classmethod
     async def get_lead(cls, db, admin_id, email=None, phone=None):
         if email is None and phone is None:
             return None
 
-        stmt = select(LeadResponse).where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
+        stmt = select(LeadResponse).where(
+            LeadResponse.admin_id == admin_id,
+            LeadResponse.is_deleted == False
+        )
+
         filters = []
+
         if email:
-            filters.append(LeadResponse.submitted_data["email"].astext == email)
+            filters.append(
+                cast(LeadResponse.submitted_data["email"], String) == email
+            )
+
         if phone:
-            filters.append(LeadResponse.submitted_data["phone"].astext == phone)
+            filters.append(
+                cast(LeadResponse.submitted_data["phone"], String) == phone
+            )
 
         stmt = stmt.where(or_(*filters))
+
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -108,7 +120,7 @@ class LeadResponse(Base):
 
         return {
             "items": items,
-            "total": total_count or 0,
+            "total_count": total_count or 0,
             "page": page,
             "size": size,
             "total_pages": (total_count + size - 1) // size if total_count else 0,

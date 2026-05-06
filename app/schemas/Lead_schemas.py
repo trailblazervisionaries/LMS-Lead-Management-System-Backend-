@@ -1,6 +1,9 @@
 from pydantic import BaseModel
 from typing import Any, List, Optional
 from datetime import datetime
+from fastapi import Form, Depends
+import json
+
 
 
 class LeadCreate(BaseModel):
@@ -8,6 +11,18 @@ class LeadCreate(BaseModel):
     collected_from: Optional[str] = "website"
     submitted_data: dict[str, Any]
 
+    @classmethod
+    def as_form(
+        cls,
+        template_id: str = Form(...),
+        collected_from: Optional[str] = Form("website"),
+        submitted_data: str = Form(...)
+    ):
+        return cls(
+            template_id=template_id,
+            collected_from=collected_from,
+            submitted_data=json.loads(submitted_data)
+        )
     class Config:
         from_attributes = True
 

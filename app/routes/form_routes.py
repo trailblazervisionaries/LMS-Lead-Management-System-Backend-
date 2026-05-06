@@ -50,7 +50,7 @@ async def list_templates(request: Request, db: Session = Depends(get_db)):
     templates = await FormService.get_templates_by_admin(db, request.state.user.user_id)
     return templates
 
-#  get snippet for the data
+#  get snippet for the data ========================
 @router.get("/template/{template_id}/snippet")
 async def get_template_snippet(template_id: str, request: Request, db: Session = Depends(get_db)):
     role = request.state.user.role
@@ -60,6 +60,7 @@ async def get_template_snippet(template_id: str, request: Request, db: Session =
     snippet = await FormService.generate_embed_snippet(db, admin_id, template_id)
     return snippet
 
+#  get public form for the lead
 @router.get("/public/embed/{admin_id}/{template_id}", response_class=HTMLResponse)
 async def make_embed_form_render(template_id: str, admin_id: str, db: Session = Depends(get_db)):
     return await FormService.render_embed_form(db, admin_id, template_id)
@@ -74,7 +75,7 @@ async def delete_template(request: Request, template_id: str, db: Session = Depe
     return result
 
 
-@router.put("/template/{template_id}")
+@router.put("/template/activate/{template_id}")
 async def activate_template(request: Request, template_id: str, db: Session = Depends(get_db)):
     role = request.state.user.role
     admin_id = request.state.user.user_id
@@ -84,7 +85,7 @@ async def activate_template(request: Request, template_id: str, db: Session = De
     return result
 
 
-@router.put("/template/{template_id}")
+@router.put("/template/deactivate/{template_id}")
 async def deactivate_template(request: Request, template_id: str, db: Session = Depends(get_db)):
     role = request.state.user.role
     admin_id = request.state.user.user_id

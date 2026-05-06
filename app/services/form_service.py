@@ -153,6 +153,7 @@ class FormService:
         return html
     
 
+
     @classmethod
     async def render_embed_form(cls, db: Session, admin_id: str, template_id: str):
         template = await FormTemplate.get_form_by_id(db, template_id)
@@ -163,124 +164,165 @@ class FormService:
         schema = template.schema_definition
 
         return HTMLResponse(f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8" />
-            <title>{schema.get("form_name")}</title>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>{schema.get("form_name")}</title>
 
-            <style>
-                body {{
-                    margin: 0;
-                    font-family: Arial;
-                    background: {schema.get("page_style", {}).get("background_color", "#fff")};
-                    padding: 20px;
-                }}
-
-                .form-container {{
-                    max-width: 600px;
-                    margin: auto;
-                    background: white;
-                    padding: 20px;
-                    border-radius: 10px;
-                }}
-
-                form {{
-                    display: grid;
-                    grid-template-columns: {"1fr 1fr" if schema.get("layout", {}).get("columns") == 2 else "1fr"};
-                    gap: {schema.get("layout", {}).get("field_spacing", 10)}px;
-                }}
-
-                .full {{
-                    grid-column: 1 / -1;
-                }}
-
-                input, textarea {{
-                    width: 100%;
-                    padding: 8px;
-                    border: 1px solid #ccc;
-                    border-radius: 6px;
-                }}
-
-                button {{
-                    background: {schema.get("submit_button", {}).get("color", "#2563EB")};
-                    color: {schema.get("submit_button", {}).get("text_color", "#fff")};
-                    padding: 10px;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                }}
-            </style>
-        </head>
-
-        <body>
-            <div class="form-container">
-                <form id="leadForm">
-                    {cls.generate_fields_html(schema.get("fields", []))}
-
-                    <button type="submit" class="full">
-                        {schema.get("submit_button", {}).get("text", "Submit")}
-                    </button>
-                </form>
-
-                <div id="msg"></div>
-            </div>
-
-        <script>
-        const form = document.getElementById("leadForm");
-
-        // 🔥 Send height with iframeId
-        function sendHeight() {{
-            const height = document.body.scrollHeight;
-
-            window.parent.postMessage({{
-                type: "LMS_IFRAME_RESIZE",
-                height: height,
-                iframeId: window.frameElement?.id
-            }}, "*");
-        }}
-
-        form.onsubmit = async function(e) {{
-            e.preventDefault();
-
-            const formData = new FormData(form);
-            formData.append("template_id", "{template.id}");
-            formData.append("collected_from", document.referrer);
-
-            try {{
-                const res = await fetch("/api/lead/add", {{
-                    method: "POST",
-                    body: formData
-                }});
-
-                const msg = document.getElementById("msg");
-
-                if (res.ok) {{
-                    msg.innerHTML = "<p style='color:green'>Submitted successfully</p>";
-                    form.reset();
-                }} else {{
-                    msg.innerHTML = "<p style='color:red'>Submission failed</p>";
-                }}
-
-            }} catch (err) {{
-                console.error(err);
+        <style>
+            body {{
+                margin: 0;
+                font-family: Arial;
+                background: {schema.get("page_style", {}).get("background_color", "#fff")};
+                padding: 20px;
             }}
 
-            sendHeight();
-        }};
+            .form-container {{
+                max-width: 600px;
+                margin: auto;
+                background: white;
+                padding: 20px;
+                border-radius: 10px;
+            }}
 
-        // initial height
-        window.addEventListener("load", sendHeight);
+            form {{
+                display: grid;
+                grid-template-columns: {"1fr 1fr" if schema.get("layout", {}).get("columns") == 2 else "1fr"};
+                gap: {schema.get("layout", {}).get("field_spacing", 10)}px;
+            }}
 
-        // dynamic height observer
-        const observer = new ResizeObserver(sendHeight);
-        observer.observe(document.body);
-        </script>
+            .full {{
+                grid-column: 1 / -1;
+            }}
 
-        </body>
-        </html>
-        """)
+            input, textarea {{
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+            }}
 
+            button {{
+                background: {schema.get("submit_button", {}).get("color", "#2563EB")};
+                color: {schema.get("submit_button", {}).get("text_color", "#fff")};
+                padding: 10px;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+            }}
+
+            button:disabled {{
+                opacity: 0.6;
+                cursor: not-allowed;
+            }}
+
+            #msg {{
+                margin-top: 10px;
+            }}
+        </style>
+    </head>
+
+    <body>
+
+    <div class="form-container">
+        <form id="leadForm">
+            {cls.generate_fields_html(schema.get("fields", []))}
+
+            <button type="submit" class="full">
+                {schema.get("submit_button", {}).get("text", "Submit")}
+            </button>
+        </form>
+
+        <div id="msg"></div>
+    </div>
+
+    <script>
+    const form = document.getElementById("leadForm");
+    const btn = form.querySelector("button");
+
+    // 🔥 Send height to parent iframe
+    function sendHeight() {{
+        const height = document.body.scrollHeight;
+
+        window.parent.postMessage({{
+            type: "LMS_IFRAME_RESIZE",
+            height: height,
+            iframeId: window.frameElement?.id
+        }}, "*");
+    }}
+
+    form.onsubmit = async function(e) {{
+        e.preventDefault();
+
+        btn.disabled = true;
+        btn.innerText = "Submitting...";
+
+        const rawFormData = new FormData(form);
+
+        // 🔥 Build submitted_data JSON
+        const submittedData = {{}};
+
+        rawFormData.forEach((value, key) => {{
+            if (value instanceof File && value.size === 0) return;
+
+            if (!(value instanceof File)) {{
+                submittedData[key] = value;
+            }}
+        }});
+
+        // 🔥 Final FormData (matches backend)
+        const finalData = new FormData();
+
+        finalData.append("template_id", "{template.id}");
+        finalData.append("collected_from", document.referrer || "website");
+        finalData.append("submitted_data", JSON.stringify(submittedData));
+
+        // 🔥 Attach files
+        rawFormData.forEach((value, key) => {{
+            if (value instanceof File && value.size > 0) {{
+                finalData.append(key, value);
+            }}
+        }});
+
+        try {{
+            const res = await fetch("http://localhost:8000/api/lead/add", {{
+                method: "POST",
+                body: finalData
+            }});
+
+            const msg = document.getElementById("msg");
+
+            if (res.ok) {{
+                msg.innerHTML = "<p style='color:green'>Submitted successfully</p>";
+                form.reset();
+            }} else {{
+                const err = await res.text();
+                msg.innerHTML = "<p style='color:red'>Submission failed</p>";
+                console.error("Error:", err);
+            }}
+
+        }} catch (err) {{
+            console.error("Submit error:", err);
+        }}
+
+        btn.disabled = false;
+        btn.innerText = "{schema.get("submit_button", {}).get("text", "Submit")}";
+
+        sendHeight();
+    }};
+
+    // initial height
+    window.addEventListener("load", sendHeight);
+
+    // dynamic resize
+    const observer = new ResizeObserver(sendHeight);
+    observer.observe(document.body);
+    </script>
+
+    </body>
+    </html>
+    """)
 
 
 

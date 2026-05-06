@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Form, Query
 from app.config.database import get_db
 from app.services.lead_service import LeadService
 from app.schemas.Lead_schemas import (
@@ -10,13 +10,14 @@ from app.schemas.Lead_schemas import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 import logging
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.post("/add", response_model=LeadResponseModel)
-async def submit_lead(data: LeadCreate, db: Session = Depends(get_db)):
+async def submit_lead(data: LeadCreate = Depends(LeadCreate.as_form), db: Session = Depends(get_db)):
     result = await LeadService.add_new_lead(db, data)
     return result
 
