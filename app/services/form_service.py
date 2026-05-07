@@ -176,6 +176,7 @@ class FormService:
                 font-family: Arial;
                 background: {schema.get("page_style", {}).get("background_color", "#fff")};
                 padding: 20px;
+                height: 100%;
             }}
 
             .form-container {{
@@ -185,6 +186,7 @@ class FormService:
                 padding: 20px;
                 border-radius: 10px;
             }}
+            
 
             form {{
                 display: grid;
@@ -241,7 +243,7 @@ class FormService:
     const form = document.getElementById("leadForm");
     const btn = form.querySelector("button");
 
-    // 🔥 Send height to parent iframe
+    //  Send height to parent iframe
     function sendHeight() {{
         const height = document.body.scrollHeight;
 
@@ -260,7 +262,7 @@ class FormService:
 
         const rawFormData = new FormData(form);
 
-        // 🔥 Build submitted_data JSON
+        //  Build submitted_data JSON
         const submittedData = {{}};
 
         rawFormData.forEach((value, key) => {{
@@ -271,14 +273,14 @@ class FormService:
             }}
         }});
 
-        // 🔥 Final FormData (matches backend)
+        //  Final FormData (matches backend)
         const finalData = new FormData();
 
         finalData.append("template_id", "{template.id}");
         finalData.append("collected_from", document.referrer || "website");
         finalData.append("submitted_data", JSON.stringify(submittedData));
 
-        // 🔥 Attach files
+        //  Attach files
         rawFormData.forEach((value, key) => {{
             if (value instanceof File && value.size > 0) {{
                 finalData.append(key, value);
