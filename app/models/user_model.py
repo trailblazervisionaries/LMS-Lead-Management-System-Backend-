@@ -41,6 +41,12 @@ class Users(Base):
         stmt = select(Users).where(Users.user_id == user_id, Users.is_deleted == False, Users.is_active == True)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
+    
+    @classmethod
+    async def by_id(cls, db, user_id):
+        stmt = select(Users).where(Users.user_id == user_id, Users.is_deleted == False)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
     @classmethod
     async def get_by_id_with_address(cls, db, user_id):

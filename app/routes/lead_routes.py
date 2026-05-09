@@ -7,6 +7,7 @@ from app.schemas.Lead_schemas import (
     LeadStatusUpdate,
     LeadPaginationResponse,
     LeadAssignResponse,
+    NewAssignment
 )
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 import logging
@@ -35,7 +36,7 @@ async def list_admin_leads(
     result = await LeadService.get_leads_for_admin(db, request.state.user.user_id, page, size)
     return result
 
-
+#  for the automatic assignment of lead to the assistant ========
 @router.post("/admin/assign-unassigned", response_model=LeadAssignResponse)
 async def assign_unassigned_leads(request: Request, db: Session = Depends(get_db)):
     role = request.state.user.role
@@ -43,6 +44,17 @@ async def assign_unassigned_leads(request: Request, db: Session = Depends(get_db
         raise HTTPException(status_code=403, detail="Only admins can assign leads")
     result = await LeadService.assign_unassigned_leads(db, request.state.user.user_id)
     return result
+
+
+# For the assign the lead to the specific assistant or change the previous assigned assistant ==========
+@router.post("/admin/force-assign", response_model=dict)
+async def assign_unassigned_leads(request: Request, data = NewAssignment, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can assign leads")
+    result = await LeadService.assign_unassigned_leads_to_specific_user(db, request.state.user.user_id, data)
+    return result
+
 
 
 @router.post("/assistant/leads/{lead_id}/update", response_model=LeadResponseModel)
@@ -103,6 +115,7 @@ async def mark_delete_lead_data(lead_id: str, request: Request, db: Session = De
         raise HTTPException(status_code = 403, detail = "Only admin, assistant can access this route ok")
     result = await LeadService.lead_mark_deleted(db, lead_id)
     return result
+
 
 
 

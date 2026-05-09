@@ -63,5 +63,17 @@ async def get_all(
 
 
 
+@router.delete("/delete/{assistant_id}")
+async def deleted_assistant_account(request: Request, assistant_id: str, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(403, "You don't have the required permissions to perform this operation.")
+    return AssistantService.delete_assistant_account_by_id(db, assistant_id)
 
+
+@router.post("/reasign-admin/{old_admin_id}/{new_admin_id}")
+async def assign_new_admin_to_assistant(request: Request, old_admin_id: str, new_admin_id: str, db: Session = Depends(get_db)):
+    if request.state.user.role != "admin":
+        raise HTTPException(403, "You don't have the required permission to perform this operation")
+    return AssistantService.assign_new_admin_to_assistants(db, old_admin_id, new_admin_id)
 

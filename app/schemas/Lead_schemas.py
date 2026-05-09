@@ -89,3 +89,10 @@ class LeadAssignResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class NewAssignment(BaseModel):
+    assistant_id: str
+    lead_id: str
+
+    

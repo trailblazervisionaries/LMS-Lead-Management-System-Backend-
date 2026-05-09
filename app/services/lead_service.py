@@ -160,6 +160,34 @@ class LeadService:
             "assistants_involved": len(assistants),
         }
     
+    @classmethod
+    async def assign_unassigned_leads_to_specific_user(cls, db, admin_id, data):
+            lead_assign = LeadAssignment.get_by_lead_id(db, data.lead_id)
+            if lead_assign:
+                lead_assign.is_deleted = True
+
+            new_assignment = LeadAssignment(
+                id=generate_id(data.lead_id),
+                lead_id=data.lead_id,
+                assistant_id=data.assistant_id,
+            )
+            db.add(new_assignment)
+            status = LeadStatusHistory(
+                id=generate_id(data.assistant_id),
+                lead_id=data.lead_id,
+                status="Assigned",
+                changed_by=data.assistant_id,
+            )
+            db.add(status)
+            await db.commit()
+            return {
+                "id": new_assignment.id,
+                "lead_id": new_assignment.lead_id,
+                "status": new_assignment.status,
+                "changed_by": new_assignment.changed_by,
+                "created_at": new_assignment.created_at,
+            }
+    
 
     @classmethod
     async def assign_assistant_to_lead_one_by_one(db, admin_id, assistant_id, lead_id):

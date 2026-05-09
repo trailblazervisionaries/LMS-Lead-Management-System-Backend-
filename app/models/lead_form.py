@@ -410,6 +410,11 @@ class LeadAssignment(Base):
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
+    @classmethod
+    async def get_by_lead_id(db, lead_id):
+        stmt = select(LeadAssignment).where(LeadAssignment.lead_id, LeadAssignment.is_deleted == False)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
     @classmethod
     async def get_unassigned_leads_by_admin(cls, db, admin_id: str):

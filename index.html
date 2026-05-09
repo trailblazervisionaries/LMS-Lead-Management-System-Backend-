@@ -6,20 +6,19 @@
     <title>Document</title>
   </head>
   <body>
-    <div id="lms-container-abca1617314348" style="height: auto !important; min-height: 100%;">
-      <iframe
-        id="lms-iframe-abca1617314348"
-        src="http://localhost:8000/api/form/public/embed/abca2550924174/abca1617314348"
-        style="
-          border: none;
-          border-radius: 10px;
-          width: 100%;
-          height: 100%;
-          transition: height 0.25s ease;
-        "
-        loading="lazy"
-      ></iframe>
-    </div>
-   
+    <div style = "height:100px; width:300px;">
+      The Lead Form
+  <div id="lms-form-abca1617314348"></div>
+  <script>
+  (function() {
+        var container = document.getElementById("lms-form-abca1617314348");
+            if (!container) return;
+        var script = document.createElement('script');
+        script.src = 'http://localhost:8000/api/form/public/embed/abca2550924174/abca1617314348/loader.js';
+        script.async = true;
+        container.appendChild(script);
+      })();
+  </script>
+  </div>
   </body>
 </html>

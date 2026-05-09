@@ -2,6 +2,7 @@ from fastapi import Request, Response, HTTPException, status
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import update
 from app.core.utils_functions import generate_id, generate_alphanumeric_password
 from sqlalchemy import select, func
 from datetime import datetime, timedelta
@@ -151,4 +152,34 @@ class AssistantService:
         assistants = result.scalars().all()
         
         return assistants, total_count
+
+    @classmethod
+    async def delete_assistant_account_by_id(cls, db, assistant_id):
+        assistant = Users.get_by_id(cls, db, assistant_id)
+        if not assistant:
+            raise HTTPException(401, "Assistant Not Found or already deleted.")
+        assistant.is_deleted = True
+        assistant.is_active = False
+        await db.commit()
+        await db.refrest()
+        return {
+            "message": "Assistant is deleted and deactivated successfully."
+        }
+
+    @classmethod
+    async def assign_new_admin_to_assistants(cls, db, old_admin_id, new_admin_id):
+        stmt = (
+            update(Users)
+            .where(Users.admin_id == old_admin_id, Users.is_deleted == False)
+            .values(admin_id=new_admin_id)
+        )
+        result = await db.execute(stmt)
+        if result.rowcount == 0:
+            return {"message": "No assistants found for this admin."}
+        await db.commit()
+        return {
+            "message": f"Admin ID updated for {result.rowcount} assistant(s)."
+        }
+
+
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from app.config.database import get_db
 from app.services.form_service import FormService
 from app.schemas.form_schemas import (
@@ -50,8 +50,18 @@ async def list_templates(request: Request, db: Session = Depends(get_db)):
     templates = await FormService.get_templates_by_admin(db, request.state.user.user_id)
     return templates
 
-#  get snippet for the data ========================
-@router.get("/template/{template_id}/snippet")
+#  get snippet for the data in json ========================
+# @router.get("/template/{template_id}/snippet", response_model=FormSnippetResponse)
+# async def get_template_snippet(template_id: str, request: Request, db: Session = Depends(get_db)):
+#     role = request.state.user.role
+#     admin_id = request.state.user.user_id
+#     if role != "admin":
+#         raise HTTPException(status_code=403, detail="Only admins can fetch snippet")
+#     snippet = await FormService.generate_embed_snippet(db, admin_id, template_id)
+#     return {"template_id": template_id, "snippet": snippet}
+
+#  get snippet in text formate =============================
+@router.get("/template/{template_id}/snippet",  response_class=PlainTextResponse)
 async def get_template_snippet(template_id: str, request: Request, db: Session = Depends(get_db)):
     role = request.state.user.role
     admin_id = request.state.user.user_id
@@ -60,10 +70,13 @@ async def get_template_snippet(template_id: str, request: Request, db: Session =
     snippet = await FormService.generate_embed_snippet(db, admin_id, template_id)
     return snippet
 
-#  get public form for the lead
-@router.get("/public/embed/{admin_id}/{template_id}", response_class=HTMLResponse)
-async def make_embed_form_render(template_id: str, admin_id: str, db: Session = Depends(get_db)):
-    return await FormService.render_embed_form(db, admin_id, template_id)
+
+#  get loader script for non-iframe public embed ====================
+@router.get("/public/embed/{admin_id}/{template_id}/loader.js", response_class=HTMLResponse)
+async def get_embed_loader_script(template_id: str, admin_id: str, db: Session = Depends(get_db)):
+    return await FormService.render_embed_loader_script(db, admin_id, template_id)
+
+
 
 
 @router.delete("/template/{template_id}")

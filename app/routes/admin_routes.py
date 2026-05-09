@@ -33,6 +33,13 @@ async def get_me(request: Request, db: Session = Depends(get_db)):
 
 
 
+@router.delete("/delete/{admin_id}")
+async def deleted_assistant_account(request: Request, admin_id: str, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(403, "You don't have the required permissions to perform this operation.")
+    return AdminService.delete_admin_account_by_id(db, admin_id)
+
 
 
 

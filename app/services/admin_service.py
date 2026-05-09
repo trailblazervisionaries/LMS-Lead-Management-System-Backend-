@@ -123,6 +123,19 @@ class AdminService:
     async def get_my_info(cls, db, user_id):
         return await Users.get_by_id_with_address(db, user_id)
 
+    @classmethod
+    async def delete_admin_account_by_id(cls, db, admin_id):
+        admin = Users.get_by_id(cls, db, admin_id)
+        if not admin:
+            raise HTTPException(401, "Admin Not Found or already deleted.")
+        admin.is_deleted = True
+        admin.is_active = False
+        await db.commit()
+        await db.refrest()
+        return {
+            "message": "Admin is deleted and deactivated successfully."
+        }
+
 
 
 
