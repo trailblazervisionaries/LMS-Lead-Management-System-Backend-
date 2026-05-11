@@ -18,7 +18,7 @@ class FormService:
     async def create_the_lead_form(cls, db: Session, data, admin_id: str):
         form_avl = FormTemplate.get_active_forms_by_admin_id(db, admin_id)
         if form_avl:
-            raise HTTPException(400, "Form already available for this admin please delete previous one to create new one")
+            raise HTTPException(400, "Form already available for this admin, please deactivate or delete previous one to add/create new one")
         new_template = FormTemplate(
             id=generate_id(admin_id),
             admin_id=admin_id,
@@ -58,6 +58,9 @@ class FormService:
         template = await FormTemplate.get_form_by_id(db, template_id)
         if not template or template.admin_id != admin_id:
             raise HTTPException(status_code=404, detail="Form template not found")
+        form_avl = FormTemplate.get_active_forms_by_admin_id(db, admin_id)
+        if form_avl:
+            raise HTTPException(400, "Other Template Form already active without deactivating other you can't activate this one.")
         template.is_active = True
         await db.commit()
         await db.refresh(template)
