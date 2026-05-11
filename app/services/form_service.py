@@ -16,6 +16,9 @@ class FormService:
 
     @classmethod
     async def create_the_lead_form(cls, db: Session, data, admin_id: str):
+        form_avl = FormTemplate.get_active_forms_by_admin_id(db, admin_id)
+        if form_avl:
+            raise HTTPException(400, "Form already available for this admin please delete previous one to create new one")
         new_template = FormTemplate(
             id=generate_id(admin_id),
             admin_id=admin_id,

@@ -138,8 +138,7 @@ class AssistantService:
     async def get_all_paginated(cls, db: Session, user_id: str, page: int, size: int):
         count_stmt = select(func.count()).select_from(Users).filter(Users.admin_id == user_id, Users.is_deleted == False, Users.is_active == True)
         total_count = await db.scalar(count_stmt) or 0
-        
-        # 2. Get the paginated items
+
         offset = (page - 1) * size
         query_stmt = (
             select(Users)
@@ -179,6 +178,31 @@ class AssistantService:
         await db.commit()
         return {
             "message": f"Admin ID updated for {result.rowcount} assistant(s)."
+        }
+
+    @classmethod
+    async def mark_account_activated(cls, db, assistant_id):
+        assistant = Users.by_id(cls, db, assistant_id)
+        if not assistant:
+            raise HTTPException(401, "Assistant Not Found.")
+        assistant.is_active = True
+        await db.commit()
+        await db.refrest()
+        return {
+            "message": "Assistant account activated successfully."
+        }
+
+
+    @classmethod
+    async def mark_account_deactivated(cls, db, assistant_id):
+        assistant = Users.by_id(cls, db, assistant_id)
+        if not assistant:
+            raise HTTPException(401, "Assistant not Found.")
+        assistant.is_active = False
+        await db.commit()
+        await db.refresh()
+        return {
+            "message":"Assistant account deactivated successfully."
         }
 
 

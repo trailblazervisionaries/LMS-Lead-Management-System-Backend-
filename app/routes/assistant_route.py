@@ -35,6 +35,19 @@ async def get_me(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(404, "Assistant data not found")
     return UserResponse.model_validate(assistant)
 
+@router.post("/activate/{assistant_id}")
+async def mark_activated(request: Request, assistant_id: str, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(403, "You don't have the required permissions to perform this operation.")
+    return AssistantService.mark_account_activated(db, assistant_id)
+
+@router.post("/deactivate/{assistant_id}")
+async def mark_deactivated(request: Request, assistant_id: str, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(403, "You don't have the required permissions to perform this operation.")
+    return AssistantService.mark_account_deactivated(db, assistant_id)
 
 @router.get("/all", response_model=UserPaginationResponse)
 async def get_all(
@@ -69,6 +82,7 @@ async def deleted_assistant_account(request: Request, assistant_id: str, db: Ses
     if role != "admin":
         raise HTTPException(403, "You don't have the required permissions to perform this operation.")
     return AssistantService.delete_assistant_account_by_id(db, assistant_id)
+
 
 
 @router.post("/reasign-admin/{old_admin_id}/{new_admin_id}")

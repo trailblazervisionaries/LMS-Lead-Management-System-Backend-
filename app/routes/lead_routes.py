@@ -48,7 +48,7 @@ async def assign_unassigned_leads(request: Request, db: Session = Depends(get_db
 
 # For the assign the lead to the specific assistant or change the previous assigned assistant ==========
 @router.post("/admin/force-assign", response_model=dict)
-async def assign_unassigned_leads(request: Request, data = NewAssignment, db: Session = Depends(get_db)):
+async def assign_unassigned_leads_(request: Request, data = NewAssignment, db: Session = Depends(get_db)):
     role = request.state.user.role
     if role != "admin":
         raise HTTPException(status_code=403, detail="Only admins can assign leads")

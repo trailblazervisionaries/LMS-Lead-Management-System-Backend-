@@ -26,6 +26,7 @@ class FormTemplate(Base):
         stmt = select(FormTemplate).where(FormTemplate.admin_id == admin_id, FormTemplate.is_active == True)
         result = await db.execute(stmt)
         return result.scalars().all()
+    
 
     @classmethod
     async def get_all_forms_by_admin_id(cls, db, admin_id):
