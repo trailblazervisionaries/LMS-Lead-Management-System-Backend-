@@ -160,7 +160,7 @@ class AssistantService:
         assistant.is_deleted = True
         assistant.is_active = False
         await db.commit()
-        await db.refrest()
+        await db.refrest(assistant)
         return {
             "message": "Assistant is deleted and deactivated successfully."
         }
@@ -187,7 +187,7 @@ class AssistantService:
             raise HTTPException(401, "Assistant Not Found.")
         assistant.is_active = True
         await db.commit()
-        await db.refrest()
+        await db.refrest(assistant)
         return {
             "message": "Assistant account activated successfully."
         }
@@ -200,7 +200,7 @@ class AssistantService:
             raise HTTPException(401, "Assistant not Found.")
         assistant.is_active = False
         await db.commit()
-        await db.refresh()
+        await db.refresh(assistant)
         return {
             "message":"Assistant account deactivated successfully."
         }
