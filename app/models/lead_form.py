@@ -103,30 +103,102 @@ class LeadResponse(Base):
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
+    # @classmethod
+    # async def get_all_by_admin_id(cls, db, admin_id, page=1, size=20):
+    #     offset = (page - 1) * size
+    #     stmt = (
+    #         select(LeadResponse)
+    #         .where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
+    #         .order_by(LeadResponse.created_at.desc())
+    #         .offset(offset)
+    #         .limit(size)
+    #     )
+    #     result = await db.execute(stmt)
+    #     items = result.scalars().all()
+
+    #     count_stmt = select(func.count(LeadResponse.id)).where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
+    #     total_count = (await db.execute(count_stmt)).scalar()
+
+    #     return {
+    #         "items": items,
+    #         "total_count": total_count or 0,
+    #         "page": page,
+    #         "size": size,
+    #         "total_pages": (total_count + size - 1) // size if total_count else 0,
+    #     }
+
+
     @classmethod
     async def get_all_by_admin_id(cls, db, admin_id, page=1, size=20):
         offset = (page - 1) * size
+        
+        # 1. Query to fetch Leads along with their active Assistant relationship
         stmt = (
             select(LeadResponse)
             .where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
+            # Eagerly load assignments and their nested assistant users to prevent N+1 queries
+            .options(
+                selectinload(LeadResponse.assignments).selectinload(LeadAssignment.assistant)
+            )
             .order_by(LeadResponse.created_at.desc())
             .offset(offset)
             .limit(size)
         )
+        
         result = await db.execute(stmt)
-        items = result.scalars().all()
+        leads = result.scalars().all()
 
-        count_stmt = select(func.count(LeadResponse.id)).where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
-        total_count = (await db.execute(count_stmt)).scalar()
+        # 2. Get total counts for pagination
+        count_stmt = select(func.count(LeadResponse.id)).where(
+            LeadResponse.admin_id == admin_id, 
+            LeadResponse.is_deleted == False
+        )
+        total_count = (await db.execute(count_stmt)).scalar() or 0
+
+        # 3. Format payload payload structure
+        formatted_items = []
+        for lead in leads:
+            # Filter for active, non-deleted assignments
+            active_assignments = [a for a in lead.assignments if not a.is_deleted]
+            
+            # Get the latest active assistant if assigned
+            assigned_assistant = None
+            if active_assignments:
+                # Sort by created_at to get the most recent assignment if multiple exist
+                latest_assignment = sorted(active_assignments, key=lambda x: x.created_at, reverse=True)[0]
+                assistant_user = latest_assignment.assistant
+                
+                if assistant_user:
+                    assigned_assistant = {
+                        "assignment_id": latest_assignment.id,
+                        "assistant_id": assistant_user.user_id,
+                        "name": getattr(assistant_user, "name", None),  # Adjust based on your Users model attributes
+                        "email": assistant_user.email,
+                        "assigned_at": latest_assignment.created_at.isoformat() if latest_assignment.created_at else None
+                    }
+
+            # Build clean response object
+            lead_dict = {
+                "id": lead.id,
+                "template_id": lead.template_id,
+                "admin_id": lead.admin_id,
+                "collected_from": lead.collected_from,
+                "submitted_data": lead.submitted_data,
+                "is_deleted": lead.is_deleted,
+                "created_at": lead.created_at.isoformat() if lead.created_at else None,
+                "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
+                "assigned_assistant": assigned_assistant  # Returns details OR null if unassigned
+            }
+            formatted_items.append(lead_dict)
 
         return {
-            "items": items,
-            "total_count": total_count or 0,
+            "items": formatted_items,
+            "total_count": total_count,
             "page": page,
             "size": size,
             "total_pages": (total_count + size - 1) // size if total_count else 0,
         }
-    
+        
 
     @classmethod
     async def get_time_based_stats(cls, db, admin_id=None, assistant_id=None):

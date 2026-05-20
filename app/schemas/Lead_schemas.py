@@ -34,7 +34,7 @@ class LeadResponseModel(BaseModel):
     submitted_data: dict[str, Any]
     created_at: datetime
     updated_at: Optional[datetime] = None
-
+    assigned_assistant: Optional[Any] = None
     class Config:
         from_attributes = True
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Form, Query, UploadFile, File
 from app.config.database import get_db
 from app.services.lead_service import LeadService
 from app.schemas.Lead_schemas import (
@@ -21,6 +21,20 @@ router = APIRouter()
 async def submit_lead(data: LeadCreate = Depends(LeadCreate.as_form), db: Session = Depends(get_db)):
     result = await LeadService.add_new_lead(db, data)
     return result
+
+@router.post("/upload/{template_id}/{admin_id}")
+async def upload_excel_leads(
+    template_id: str,
+    admin_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    return await LeadService.upload_leads(
+        db=db, 
+        template_id=template_id, 
+        admin_id=admin_id, 
+        file=file
+    )
 
 
 @router.get("/admin/leads", response_model=LeadPaginationResponse)

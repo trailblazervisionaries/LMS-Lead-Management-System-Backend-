@@ -4,7 +4,7 @@ from typing import Optional, Union
 from zoneinfo import ZoneInfo
 
 
-def generate_id(name: str = None) -> str:
+def generate_id(name: str = "name") -> str:
     # Take first 3 letters of name (remove spaces, lowercase)
     prefix = name.replace(" ", "").lower()[:4]
     # Generate a numeric 5-digit string from UUID

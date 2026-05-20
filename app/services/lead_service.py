@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.core.utils_functions import generate_id
-from sqlalchemy import select, insert, func
+from sqlalchemy import select, insert, func, or_
 from datetime import datetime
 from dotenv import load_dotenv
 from app.models.lead_form import (
@@ -62,6 +62,7 @@ class LeadService:
         await cls.auto_assign_lead(db, admin_id, new_lead.id)
         return new_lead
 
+
     @classmethod
     async def auto_assign_lead(cls, db: Session, admin_id: str, lead_id: str):
         assistant_stmt = select(Users).where(
@@ -106,6 +107,7 @@ class LeadService:
         db.add(assigned_status)
         await db.commit()
         return new_assignment
+
 
     @classmethod
     async def assign_unassigned_leads(cls, db: Session, admin_id: str):
@@ -160,6 +162,7 @@ class LeadService:
             "assistants_involved": len(assistants),
         }
     
+
     @classmethod
     async def assign_unassigned_leads_to_specific_user(cls, db, admin_id, data):
             lead_assign = LeadAssignment.get_by_lead_id(db, data.lead_id)
@@ -256,6 +259,7 @@ class LeadService:
         await db.refresh(lead)
         return lead
     
+
     @classmethod
     async def delete_lead_permanentaly(cls, db, lead_id):
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
@@ -265,6 +269,7 @@ class LeadService:
         await db.commit()
         return {"detail": f"Lead with id {lead_id} deleted successfully"}
     
+
     @classmethod
     async def lead_mark_deleted(cls, db, lead_id):
         lead = await LeadResponse.get_by_id(db, lead_id)
@@ -278,6 +283,7 @@ class LeadService:
     @classmethod
     async def get_todays_followups(cls, db: Session, assistant_id: str = None, admin_id: str = None):
         return await LeadRemarks.get_today_follow_ups(db, admin_id, assistant_id)
+
 
     @classmethod
     async def get_lead_history(cls, db: Session, lead_id: str):
@@ -296,36 +302,149 @@ class LeadService:
             for item in history
         ]
 
+
+    
     @classmethod
     async def upload_leads(cls, db, template_id, admin_id, file):
         if not file.filename.endswith((".xlsx", ".xls")):
             raise HTTPException(status_code=400, detail="Invalid file type. Please upload Excel.")
+        
+        # Validate template status
+        template = await FormTemplate.get_form_by_id(db, template_id)
+        if not template or not template.is_active:
+            raise HTTPException(status_code=404, detail="Lead form template not found or inactive")
 
         contents = await file.read()
-
         df = pd.read_excel(io.BytesIO(contents))
-        df = df.where(pd.notnull(df), None)
+        
+        if df.empty:
+            return {"message": "No leads found in the file"}
 
-        new_leads = []
+        # Handle null values first safely
+        df = df.fillna("")
+
+        # Helper function to find dictionary values using case-insensitive keys
+        def get_case_insensitive_value(row_dict, target_key):
+            # CRITICAL FIX: Ensure row_dict is an actual, valid dictionary before searching keys
+            if not row_dict or not isinstance(row_dict, dict):
+                return None
+            for key, value in row_dict.items():
+                if str(key).strip().lower() == target_key.lower():
+                    return str(value).strip() if (value is not None and value != "") else None
+            return None
+
+        # Extract clean identifiers from Excel dynamically supporting any casing
+        excel_emails = list({
+            get_case_insensitive_value(row.to_dict(), "email")
+            for _, row in df.iterrows()
+            if get_case_insensitive_value(row.to_dict(), "email") is not None
+        })
+        excel_phones = list({
+            get_case_insensitive_value(row.to_dict(), "phone")
+            for _, row in df.iterrows()
+            if get_case_insensitive_value(row.to_dict(), "phone") is not None
+        })
+
+        existing_emails = set()
+        existing_phones = set()
+
+        if excel_emails or excel_phones:
+            conditions = []
+            if excel_emails:
+                conditions.append(LeadResponse.submitted_data["email"].as_string().in_(excel_emails))
+            if excel_phones:
+                conditions.append(LeadResponse.submitted_data["phone"].as_string().in_(excel_phones))
+
+            query = select(LeadResponse.submitted_data).where(
+                LeadResponse.admin_id == admin_id,
+                or_(*conditions)
+            )
+            
+            result = await db.execute(query)
+            existing_leads = result.scalars().all()
+
+            for data in existing_leads:
+                # CRITICAL FIX: Skip records if the database returned a None/Empty row context
+                if data and isinstance(data, dict):
+                    email_val = get_case_insensitive_value(data, "email")
+                    phone_val = get_case_insensitive_value(data, "phone")
+                    if email_val:
+                        existing_emails.add(email_val)
+                    if phone_val:
+                        existing_phones.add(phone_val)
+
+        lead_mappings = []
+        history_mappings = []
+        created_lead_ids = []
+        seen_in_excel = set()
+
         for _, row in df.iterrows():
             row_dict = row.to_dict()
-            new_leads.append(
-                LeadResponse(
-                    id=generate_id(),
-                    template_id=template_id,
-                    admin_id=admin_id,
-                    submitted_data=row_dict,
-                )
-            )
+            
+            email = get_case_insensitive_value(row_dict, "email")
+            phone = get_case_insensitive_value(row_dict, "phone")
+
+            if (email and email in existing_emails) or (phone and phone in existing_phones):
+                continue
+            
+            excel_key = (email, phone)
+            if excel_key in seen_in_excel:
+                continue
+            seen_in_excel.add(excel_key)
+
+            # SAFETIED ID GENERATION
+            try:
+                lead_id = generate_id() 
+                if not lead_id:
+                    raise ValueError("ID generation returned None")
+            except Exception as id_err:
+                raise HTTPException(status_code=500, detail=f"ID generation module failure: {str(id_err)}")
+                
+            created_lead_ids.append(lead_id)
+
+            # Sanitize dictionary values for clean JSON types while keeping original key names
+            sanitized_data = {k: (None if (v == "" or v is None) else v) for k, v in row_dict.items()}
+
+            lead_mappings.append({
+                "id": lead_id,
+                "template_id": template_id,
+                "admin_id": admin_id,
+                "collected_from": "Manual",
+                "submitted_data": sanitized_data,
+            })
+
+            try:
+                history_id = generate_id()
+            except Exception:
+                history_id = f"hist_{lead_id}" 
+
+            history_mappings.append({
+                "id": history_id,
+                "lead_id": lead_id,
+                "status": "Created",
+            })
+
+        if not lead_mappings:
+            return {"message": "All leads already exist or file data was invalid"}
 
         try:
-            db.bulk_save_objects(new_leads)
+            await db.execute(insert(LeadResponse), lead_mappings)
+            await db.execute(insert(LeadStatusHistory), history_mappings)
             await db.commit()
         except Exception as e:
             await db.rollback()
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=f"Database error during commit: {str(e)}")
 
-        return {"message": f"Successfully uploaded {len(new_leads)} leads"}
+        for lead_id in created_lead_ids:
+            await cls.auto_assign_lead(db, admin_id, lead_id)
+
+        return {"message": f"Successfully uploaded and assigned {len(lead_mappings)} leads"}
+    
 
 
 
+
+
+
+
+   
