@@ -93,13 +93,16 @@ async def list_assistant_leads(
     return await LeadService.get_leads_for_assistant(db, request.state.user.user_id, page, size)
 
 
-@router.get("/assistant/followups", response_model=list[dict])
-async def get_assistant_followups(request: Request, db: Session = Depends(get_db)):
+@router.get("/assistant/followups/{date}", response_model=list[dict])
+async def get_assistant_followups(request: Request, date: str, db: Session = Depends(get_db)):
     role = request.state.user.role
     if role != "assistant":
         raise HTTPException(status_code=403, detail="Only assistants can read followups")
-    followups = await LeadService.get_todays_followups(db, assistant_id=request.state.user.user_id)
-    return followups
+    followups = await LeadService.get_todays_followups(db, date, assistant_id=request.state.user.user_id)
+    return [
+        {column.name: getattr(item, column.name) for column in item.__table__.columns}
+        for item in followups
+    ]
 
 
 @router.get("/lead/{lead_id}/history", response_model=list[dict])

@@ -400,8 +400,14 @@ class LeadRemarks(Base):
     
     
     @classmethod
-    async def get_today_follow_ups(db, admin_id: str = None, assistant_id: str = None):
-        today_start = datetime.combine(datetime.utcnow().date(), time.min)
+    async def get_today_follow_ups(cls, db, start_date, admin_id: str = None, assistant_id: str = None):
+        try:
+            parsed_date = datetime.strptime(start_date, "%d%m%Y").date()
+        except ValueError:
+            raise ValueError("Invalid date format. Expected 'ddmmyyyy' string (e.g., 20052026).")
+
+        # today_start = datetime.combine(datetime.utcnow().date(), time.min)
+        from_date = datetime.combine(parsed_date, time.min)
         today_end = datetime.combine(datetime.utcnow().date(), time.max)
 
         # Start query from LeadRemarks
@@ -413,7 +419,7 @@ class LeadRemarks(Base):
 
         # Basic filters: Today's date, not completed, not deleted
         filters = [
-            LeadRemarks.next_follow_up_date >= today_start,
+            LeadRemarks.next_follow_up_date >= from_date,
             LeadRemarks.next_follow_up_date <= today_end,
             LeadRemarks.is_completed == False,
             LeadRemarks.is_deleted == False
@@ -545,9 +551,10 @@ class LeadAssignment(Base):
 
         return {
             "items": leads, # Contains LeadResponse objects + their remarks
-            "total": total_count,
+            "total_count": total_count,
             "page": page,
-            "size": size
+            "size": size,
+            "total_pages": (total_count + size - 1) // size if total_count else 0,
         }
 
 

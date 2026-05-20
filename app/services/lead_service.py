@@ -281,8 +281,8 @@ class LeadService:
 
 
     @classmethod
-    async def get_todays_followups(cls, db: Session, assistant_id: str = None, admin_id: str = None):
-        return await LeadRemarks.get_today_follow_ups(db, admin_id, assistant_id)
+    async def get_todays_followups(cls, db: Session, date: str, assistant_id: str = None, admin_id: str = None):
+        return await LeadRemarks.get_today_follow_ups(db, date, admin_id, assistant_id)
 
 
     @classmethod
