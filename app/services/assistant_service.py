@@ -154,7 +154,7 @@ class AssistantService:
 
     @classmethod
     async def delete_assistant_account_by_id(cls, db, assistant_id):
-        assistant = Users.get_by_id(cls, db, assistant_id)
+        assistant = Users.get_by_id(db, assistant_id)
         if not assistant:
             raise HTTPException(401, "Assistant Not Found or already deleted.")
         assistant.is_deleted = True
@@ -182,7 +182,7 @@ class AssistantService:
 
     @classmethod
     async def mark_account_activated(cls, db, assistant_id):
-        assistant = Users.by_id(cls, db, assistant_id)
+        assistant = Users.by_id(db, assistant_id)
         if not assistant:
             raise HTTPException(401, "Assistant Not Found.")
         assistant.is_active = True
@@ -195,7 +195,7 @@ class AssistantService:
 
     @classmethod
     async def mark_account_deactivated(cls, db, assistant_id):
-        assistant = Users.by_id(cls, db, assistant_id)
+        assistant = Users.by_id(db, assistant_id)
         if not assistant:
             raise HTTPException(401, "Assistant not Found.")
         assistant.is_active = False
