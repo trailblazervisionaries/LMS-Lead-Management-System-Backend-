@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 from app.models.user_model import Users
 from app.core.hash import hash_password, verify_password
 from app.models.address_model import Address
-# from app.templates.send_template_mail import MailTemplatesService
-# from app.backgroundTasks.MonitorAsync import MonitorAsync
+from app.templates.send_template_mail import MailTemplatesService
+from app.backgroundTasks.MonitorAsync import MonitorAsync
 from app.schemas.User_schemas import UserCreate, UserUpdate
 import traceback
 import os
@@ -57,13 +57,13 @@ class AssistantService:
             await db.commit()
             logger.info("AssistantService: New user assistant is added successfully")
             await db.refresh(new_assistant, ["address"])
-            # MonitorAsync.deferred(
-            #     MailTemplatesService.send_credentials_template,
-            #     new_assistant.email,
-            #     new_assistant.fname,
-            #     "assistant",
-            #     temp_password,
-            # )
+            MonitorAsync.deferred(
+                MailTemplatesService.send_credentials_template,
+                new_assistant.email,
+                new_assistant.fname,
+                "assistant",
+                temp_password,
+            )
             return new_assistant
         
         except IntegrityError as e:

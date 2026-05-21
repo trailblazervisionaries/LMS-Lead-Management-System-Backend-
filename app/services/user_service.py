@@ -4,8 +4,8 @@ from app.core.hash import hash_password, verify_password
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.core.auth import create_auth_token
 from app.core.utils_functions import generate_id, generate_otp
-# from app.backgroundTasks.MonitorAsync import MonitorAsync
-# from app.templates.send_template_mail import MailTemplatesService
+from app.backgroundTasks.MonitorAsync import MonitorAsync
+from app.templates.send_template_mail import MailTemplatesService
 from datetime import timedelta
 from dotenv import load_dotenv
 import os
@@ -63,7 +63,7 @@ class UserServices:
         user.password = hashed_pw
         await db.commit()
         await db.refresh(user)
-        # MonitorAsync.deferred(MailTemplatesService.send_notif_password_change, user.email)
+        MonitorAsync.deferred(MailTemplatesService.send_notif_password_change, user.email)
         logger.info("UserServices: Password updated successfully :)")
         return user
 
@@ -83,7 +83,7 @@ class UserServices:
             new_record = OtpModel(email=email,otp_code=new_otp)
             db.add(new_record)
         await db.commit()  
-        # MonitorAsync.deferred(MailTemplatesService.send_otp_template,email, new_otp)
+        MonitorAsync.deferred(MailTemplatesService.send_otp_template, email, new_otp)
         return {"message": "OTP sent successfully"}
 
     @classmethod
@@ -103,7 +103,7 @@ class UserServices:
         user.password = hashed_pw
         await db.commit()       
         await db.refresh(user)
-        # MonitorAsync.deferred(MailTemplatesService.send_notif_password_change, email)
+        MonitorAsync.deferred(MailTemplatesService.send_notif_password_change, email)
         logger.info("AdminAuthService: Password changed successfully")
         return {"message": "Password changed successfully"}
 

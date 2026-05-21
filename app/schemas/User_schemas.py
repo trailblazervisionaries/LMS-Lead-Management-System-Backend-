@@ -91,3 +91,9 @@ class AssistantNameIdResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ComposeEmailRequest(BaseModel):
+    email_to: EmailStr
+    subject: str
+    body: str
