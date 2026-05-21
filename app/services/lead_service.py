@@ -165,7 +165,9 @@ class LeadService:
 
     @classmethod
     async def assign_unassigned_leads_to_specific_user(cls, db, admin_id, data):
-            lead_assign = LeadAssignment.get_by_lead_id(db, data.lead_id)
+            print("lead_id", data.lead_id)
+            lead_assign = await LeadAssignment.get_by_lead_id(db, data.lead_id)
+            print("lead_assign data ", lead_assign.lead_id)
             if lead_assign:
                 lead_assign.is_deleted = True
 
@@ -186,8 +188,8 @@ class LeadService:
             return {
                 "id": new_assignment.id,
                 "lead_id": new_assignment.lead_id,
-                "status": new_assignment.status,
-                "changed_by": new_assignment.changed_by,
+                "status": status.status,
+                "changed_by": status.changed_by,
                 "created_at": new_assignment.created_at,
             }
     
