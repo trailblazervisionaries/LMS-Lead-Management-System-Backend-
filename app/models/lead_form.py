@@ -535,3 +535,6 @@ class LeadAssignment(Base):
             "size": size,
             "total_pages": (total_count + size - 1) // size if total_count else 0,
         }
+
+
+        

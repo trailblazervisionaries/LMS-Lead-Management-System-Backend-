@@ -85,5 +85,9 @@ class ResetPassword(BaseModel):
     otp: str
     new_password: str
 
+class AssistantNameIdResponse(BaseModel):
+    name: str
+    user_id: str
 
-
+    class Config:
+        from_attributes = True

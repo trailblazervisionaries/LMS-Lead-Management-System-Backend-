@@ -209,4 +209,8 @@ class AssistantService:
         }
 
 
-
+    @classmethod
+    async def get_name_id(cls, db, admin_id):
+        stmt = (select(Users.name, Users.user_id).where(Users.admin_id == admin_id, Users.role == "assistant", Users.is_deleted == False))
+        result = await db.execute(stmt)
+        return result.all()

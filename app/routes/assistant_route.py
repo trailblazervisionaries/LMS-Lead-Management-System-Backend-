@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query
 from app.config.database import get_db
 from app.services.assistant_service import AssistantService
 from sqlalchemy.ext.asyncio import AsyncSession as Session
-from app.schemas.User_schemas import UserCreate, UserUpdate, UserPaginationResponse, UserResponse
+from app.schemas.User_schemas import UserCreate, UserUpdate, UserPaginationResponse, UserResponse, AssistantNameIdResponse
 import logging 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -91,3 +91,9 @@ async def assign_new_admin_to_assistant(request: Request, old_admin_id: str, new
         raise HTTPException(403, "You don't have the required permission to perform this operation")
     return await AssistantService.assign_new_admin_to_assistants(db, old_admin_id, new_admin_id)
 
+@router.get("/allassistant/name/id/{admin_id}", response_model=list[AssistantNameIdResponse])
+async def get_all_the_assistant_name_id(request: Request, admin_id: str, db: Session = Depends(get_db)):
+    if request.state.user.role != "admin":
+        raise HTTPException(403, "You don't have the required permission to perform this operation")
+    assistants = await AssistantService.get_name_id(db, admin_id)
+    return [AssistantNameIdResponse.model_validate(assistant) for assistant in assistants]
