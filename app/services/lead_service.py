@@ -444,7 +444,81 @@ class LeadService:
 
 
 
+# analytics routes ==========================
+
+
+    @classmethod
+    async def get_lead_status_analytics(
+        cls, 
+        db: Session, 
+        admin_id: str = None, 
+        assistant_id: str = None
+    ):
+        """
+        Returns metrics count for 'Created', 'Assigned', 'Contacted', 'Interested', 'Converted'
+        filtered dynamically by admin_id or assistant_id.
+        """
+        
+        # 1. Create subquery to isolate the LATEST active history status row for each unique lead
+        # This prevents counting old historical transitions for the same lead.
+        latest_status_subquery = (
+            select(
+                LeadStatusHistory.lead_id,
+                LeadStatusHistory.status
+            )
+            .distinct(LeadStatusHistory.lead_id)
+            .where(LeadStatusHistory.is_deleted == False)
+            .order_by(LeadStatusHistory.lead_id, LeadStatusHistory.created_at.desc())
+        ).subquery()
+
+        # 2. Build the main query joining LeadResponse with our cleaned subquery status profile
+        stmt = select(
+            # Conditional aggregation counts matching status instances cleanly in 1 database pass
+            func.count().filter(latest_status_subquery.c.status == "Created").label("total_created"),
+            func.count().filter(latest_status_subquery.c.status == "Assigned").label("total_assigned"),
+            func.count().filter(latest_status_subquery.c.status == "Contacted").label("total_contacted"),
+            func.count().filter(latest_status_subquery.c.status == "Interested").label("total_interested"),
+            func.count().filter(latest_status_subquery.c.status == "Converted").label("total_converted")
+        ).select_from(LeadResponse).join(
+            latest_status_subquery, 
+            LeadResponse.id == latest_status_subquery.c.lead_id
+        ).where(
+            LeadResponse.is_deleted == False
+        )
+
+        # 3. Dynamically apply business isolation parameters (Admin scoping vs Assistant assignment mapping)
+        if assistant_id:
+            # Join assignments table to isolate context down to a specific working assistant identity
+            stmt = stmt.join(
+                LeadAssignment, 
+                LeadAssignment.lead_id == LeadResponse.id
+            ).where(
+                LeadAssignment.assistant_id == assistant_id,
+                LeadAssignment.is_deleted == False
+            )
+        elif admin_id:
+            # Fallback to general administrative tenant perimeter checks
+            stmt = stmt.where(LeadResponse.admin_id == admin_id)
+        else:
+            # Prevent open table scanning if parameters are accidentally omitted
+            return {
+                "total_created": 0, "total_assigned": 0, "total_contacted": 0,
+                "total_interested": 0, "total_converted": 0
+            }
+
+        # 4. Execute single optimized database roundtrip fetch
+        result = await db.execute(stmt)
+        row = result.fetchone()
+
+        # Return results as a clean dictionary map matching your requirements
+        return {
+            "total_created": row.total_created or 0,
+            "total_assigned": row.total_assigned or 0,
+            "total_contacted": row.total_contacted or 0,
+            "total_interested": row.total_interested or 0,
+            "total_converted": row.total_converted or 0
+        }
 
 
 
-   
+    

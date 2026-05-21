@@ -281,91 +281,6 @@ class LeadResponse(Base):
 
         return final_result
 
-    # @classmethod
-    # async def get_lead_stats(cls, db, admin_id=None, assistant_id=None):
-
-    #     latest_status_subq = (
-    #         select(
-    #             LeadStatusHistory.lead_id,
-    #             LeadStatusHistory.status,
-    #             func.row_number()
-    #             .over(
-    #                 partition_by=LeadStatusHistory.lead_id,
-    #                 order_by=LeadStatusHistory.created_at.desc(),
-    #             )
-    #             .label("rn"),
-    #         )
-    #         .where(LeadStatusHistory.is_deleted == False)
-    #         .subquery()
-    #     )
-
-    #     latest_status = aliased(latest_status_subq)
-
-    #     query = select(
-    #         func.count(cls.id).label("total_leads"),
-
-    #         func.count(
-    #             case((latest_status.c.status == "Converted", 1))
-    #         ).label("total_converted"),
-
-    #         func.count(
-    #             case((latest_status.c.status == "Pending", 1))
-    #         ).label("total_pending"),
-
-    #         func.count(
-    #             case((latest_status.c.status == "InDiscussion", 1))
-    #         ).label("total_in_discussion"),
-
-    #         func.count(
-    #             case((latest_status.c.status == "Rejected", 1))
-    #         ).label("total_rejected"),
-    #     )
-
-    #     query = query.join(
-    #         latest_status,
-    #         (cls.id == latest_status.c.lead_id) & (latest_status.c.rn == 1),
-    #         isouter=True,
-    #     )
-
-    #     # 4. Filter by Admin / Assistant
-    #     # -------------------------------
-    #     if admin_id:
-    #         query = query.where(cls.admin_id == admin_id)
-
-    #     if assistant_id:
-    #         query = query.join(LeadAssignment).where(
-    #             LeadAssignment.assistant_id == assistant_id
-    #         )
-
-    #     # 5. Not Assigned Count
-    #     # -------------------------------
-    #     not_assigned_subq = (
-    #         select(func.count(cls.id))
-    #         .select_from(cls)
-    #         .outerjoin(LeadAssignment, cls.id == LeadAssignment.lead_id)
-    #         .where(LeadAssignment.lead_id == None)
-    #     )
-
-    #     if admin_id:
-    #         not_assigned_subq = not_assigned_subq.where(cls.admin_id == admin_id)
-
-    #     result = await db.execute(query)
-    #     stats = result.mappings().first()
-
-    #     # Fetch not assigned separately
-    #     not_assigned_result = await db.execute(not_assigned_subq)
-    #     total_not_assigned = not_assigned_result.scalar()
-
-    #     return {
-    #         "total_leads": stats["total_leads"] or 0,
-    #         "total_converted": stats["total_converted"] or 0,
-    #         "total_pending": stats["total_pending"] or 0,
-    #         "total_in_discussion": stats["total_in_discussion"] or 0,
-    #         "total_rejected": stats["total_rejected"] or 0,
-    #         "total_not_assigned": total_not_assigned or 0,
-    #     }
-    
-
 
 class LeadRemarks(Base):
     __tablename__ = "lead_remarks" # Fixed typo from "reamrks"
@@ -515,11 +430,54 @@ class LeadAssignment(Base):
 
 
 
+    # @classmethod
+    # async def get_all_paginated_leads_by_assistant_id(cls, db, assistant_id, page, size):
+    #     offset = (page - 1) * size
+    #     # Base query joining Assignment to LeadResponse
+    #     # We use selectinload to pull remarks efficiently
+    #     stmt = (
+    #         select(LeadResponse)
+    #         .join(LeadAssignment, LeadAssignment.lead_id == LeadResponse.id)
+    #         .where(
+    #             LeadAssignment.assistant_id == assistant_id,
+    #             LeadAssignment.is_deleted == False,
+    #             LeadResponse.is_deleted == False
+    #         )
+    #         .options(selectinload(LeadResponse.remarks)) 
+    #         .order_by(LeadResponse.created_at.desc())
+    #         .offset(offset)
+    #         .limit(size)
+    #     )
+
+    #     result = await db.execute(stmt)
+    #     leads = result.scalars().all()
+
+    #     # Count total for pagination metadata
+    #     count_stmt = (
+    #         select(func.count(LeadResponse.id))
+    #         .join(LeadAssignment, LeadAssignment.lead_id == LeadResponse.id)
+    #         .where(
+    #             LeadAssignment.assistant_id == assistant_id,
+    #             LeadAssignment.is_deleted == False
+    #         )
+    #     )
+    #     count_result = await db.execute(count_stmt)
+    #     total_count = count_result.scalar()
+
+    #     return {
+    #         "items": leads, # Contains LeadResponse objects + their remarks
+    #         "total_count": total_count,
+    #         "page": page,
+    #         "size": size,
+    #         "total_pages": (total_count + size - 1) // size if total_count else 0,
+    #     }
+
+
+
     @classmethod
     async def get_all_paginated_leads_by_assistant_id(cls, db, assistant_id, page, size):
         offset = (page - 1) * size
-        # Base query joining Assignment to LeadResponse
-        # We use selectinload to pull remarks efficiently
+
         stmt = (
             select(LeadResponse)
             .join(LeadAssignment, LeadAssignment.lead_id == LeadResponse.id)
@@ -528,7 +486,7 @@ class LeadAssignment(Base):
                 LeadAssignment.is_deleted == False,
                 LeadResponse.is_deleted == False
             )
-            .options(selectinload(LeadResponse.remarks)) 
+            .options(selectinload(LeadResponse.status_history)) 
             .order_by(LeadResponse.created_at.desc())
             .offset(offset)
             .limit(size)
@@ -537,30 +495,43 @@ class LeadAssignment(Base):
         result = await db.execute(stmt)
         leads = result.scalars().all()
 
-        # Count total for pagination metadata
         count_stmt = (
             select(func.count(LeadResponse.id))
             .join(LeadAssignment, LeadAssignment.lead_id == LeadResponse.id)
             .where(
                 LeadAssignment.assistant_id == assistant_id,
-                LeadAssignment.is_deleted == False
+                LeadAssignment.is_deleted == False,
+                LeadResponse.is_deleted == False
             )
         )
         count_result = await db.execute(count_stmt)
-        total_count = count_result.scalar()
+        total_count = count_result.scalar() or 0
+
+        formatted_leads = []
+        for lead in leads:
+            active_history = [h for h in lead.status_history if not h.is_deleted]
+            
+            current_status = "Created" 
+            if active_history:
+                latest_entry = max(active_history, key=lambda x: x.created_at)
+                current_status = latest_entry.status
+
+            lead_data = {
+                "id": lead.id,
+                "template_id": lead.template_id,
+                "admin_id": lead.admin_id,
+                "collected_from": lead.collected_from,
+                "submitted_data": lead.submitted_data,
+                "created_at": lead.created_at.isoformat() if lead.created_at else None,
+                "status": current_status,
+                "assigned_assistant": "You" 
+            }
+            formatted_leads.append(lead_data)
 
         return {
-            "items": leads, # Contains LeadResponse objects + their remarks
+            "items": formatted_leads, 
             "total_count": total_count,
             "page": page,
             "size": size,
             "total_pages": (total_count + size - 1) // size if total_count else 0,
         }
-
-
-
-
-
-
-
-

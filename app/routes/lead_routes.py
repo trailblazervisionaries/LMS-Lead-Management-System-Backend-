@@ -116,7 +116,7 @@ async def get_lead_history(lead_id: str, request: Request, db: Session = Depends
     return history
 
 
-@router.delete("/assistant/{lead_d}")
+@router.delete("/assistant/{lead_id}")
 async def delete_lead_data(lead_id: str, request: Request, db: Session = Depends(get_db)):
     role = request.state.user.role
     if role not in {"assistant", "admin"}:
@@ -135,6 +135,20 @@ async def mark_delete_lead_data(lead_id: str, request: Request, db: Session = De
 
 
 
+@router.get("/lead-counters")
+async def get_dashboard_counters(request: Request, db: Session = Depends(get_db)):
+    user_id = request.state.user.user_id
+    role = request.state.user.role
 
+    if role == "admin":
+        # Admins view aggregate analytics for all leads they manage
+        stats = await LeadService.get_lead_status_analytics(db, admin_id=user_id)
+    elif role == "assistant":
+        # Assistants view strictly what is assigned to them
+        stats = await LeadService.get_lead_status_analytics(db, assistant_id=user_id)
+    else:
+        raise HTTPException(status_code=403, detail="Unauthorized role access profile")
+
+    return stats
 
 

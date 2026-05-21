@@ -33,8 +33,10 @@ class LeadResponseModel(BaseModel):
     admin_id: str
     submitted_data: dict[str, Any]
     created_at: datetime
+    status: Optional[str] = None
     updated_at: Optional[datetime] = None
     assigned_assistant: Optional[Any] = None
+
     class Config:
         from_attributes = True
 

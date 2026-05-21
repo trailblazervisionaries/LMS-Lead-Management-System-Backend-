@@ -152,6 +152,7 @@ class AssistantService:
         
         return assistants, total_count
 
+
     @classmethod
     async def delete_assistant_account_by_id(cls, db, assistant_id):
         assistant = await Users.get_by_id(db, assistant_id)
@@ -164,6 +165,7 @@ class AssistantService:
         return {
             "message": "Assistant is deleted and deactivated successfully."
         }
+
 
     @classmethod
     async def assign_new_admin_to_assistants(cls, db, old_admin_id, new_admin_id):
@@ -179,6 +181,7 @@ class AssistantService:
         return {
             "message": f"Admin ID updated for {result.rowcount} assistant(s)."
         }
+
 
     @classmethod
     async def mark_account_activated(cls, db, assistant_id):
