@@ -97,3 +97,16 @@ class ComposeEmailRequest(BaseModel):
     email_to: EmailStr
     subject: str
     body: str
+
+class EmailRecipient(BaseModel):
+    email: EmailStr
+    
+class ComposeBulkEmailRequest(BaseModel):
+    email_to: list[EmailRecipient]
+    subject: str
+    body: str
+
+
+class ComposeBulkEmailToUsers(BaseModel):
+    subject: str
+    body: str

@@ -34,39 +34,84 @@ class MailTemplatesService:
 
         subject = subjects.get(role, "Your Lead Management Portal Account Details")
 
+        # Dynamic body text adjustment based on role to match the UI flow
+        if role == "admin":
+            intro_text = "We are pleased to inform you that your registration has been successfully approved."
+        else:
+            intro_text = f"Your account has been created by {created_by or 'the administrator'}."
+
         html_message = f"""
-            <html>
-                <body>
-                    <div>
-                        <h2>🎉 Welcome to {'Lead Management Portal'} 🎉</h2>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333333; -webkit-font-smoothing: antialiased;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #f4f6f8; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e1e4e8; border-bottom: none;">
+                            <!-- Header Section -->
+                            <tr>
+                                <td style="background-color: #c26d03; padding: 35px 40px;">
+                                    <p style="margin: 0 0 10px 0; color: rgba(255, 255, 255, 0.7); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">LEAD MANAGEMENT PORTAL</p>
+                                    <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 400; letter-spacing: -0.5px;">Registration Approved</h1>
+                                </td>
+                            </tr>
+                            <!-- Body Section -->
+                            <tr>
+                                <td style="padding: 40px;">
+                                    <p style="margin: 0 0 20px 0; font-size: 15px; color: #333333;">Dear <strong style="color: #111111;">{name}</strong>,</p>
+                                    
+                                    <p style="margin: 0 0 20px 0; font-size: 15px; line-height: 1.6; color: #4f5d73;">
+                                        {intro_text}
+                                    </p>
+                                    
+                                    <p style="margin: 0 0 20px 0; font-size: 15px; line-height: 1.6; color: #4f5d73;">
+                                        Your account has now been activated as an <strong>{role.capitalize()}</strong>. You may begin accessing the portal using the credentials below:
+                                    </p>
 
-                        <p>Hi <strong>{name}</strong>,</p>
+                                    <!-- Credentials Box Structure -->
+                                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fdfaf4; border-left: 4px solid #c26d03; margin: 25px 0; border-radius: 0 4px 4px 0;">
+                                        <tr>
+                                            <td style="padding: 15px 20px;">
+                                                <p style="margin: 0 0 8px 0; font-size: 14px; color: #c26d03; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Login Credentials</p>
+                                                <p style="margin: 0 0 5px 0; font-size: 14px; color: #333333;"><strong>Email:</strong> {masked_email}</p>
+                                                <p style="margin: 0; font-size: 14px; color: #333333;"><strong>Temporary Password:</strong> <code style="font-family: Consolas, Monaco, monospace; background-color: #f1f1f1; padding: 2px 6px; border-radius: 3px;">{password}</code></p>
+                                            </td>
+                                        </tr>
+                                    </table>
 
-                        <p>
-                            Your <strong>{role.capitalize()}</strong> account has been created successfully.
-                        </p>
+                                    <p style="margin: 0 0 20px 0; font-size: 13px; line-height: 1.5; color: #d93838; font-weight: 500;">
+                                        ⚠️ <strong>Security Note:</strong> This is a temporary password. Please change it immediately after logging in.
+                                    </p>
 
-                        <div class="highlight">
-                            <p><strong>Login Credentials</strong></p>
-                            <ul>
-                                <li><strong>Email:</strong> {masked_email}</li>
-                                <li><strong>Password:</strong> {password}</li>
-                            </ul>
-                        </div>
+                                    <p style="margin: 0 0 40px 0; font-size: 15px; line-height: 1.6; color: #4f5d73;">
+                                        Need help? Contact us at <a href="mailto:{SUPPORT_MAIL}" style="color: #c26d03; text-decoration: none; font-weight: 500;">{SUPPORT_MAIL}</a>.
+                                    </p>
 
-                        <p>
-                            ⚠️ <strong>Security Note:</strong>  
-                            This is a temporary password. Please change it immediately after logging in.
-                        </p><br>
-                        <p>Need help? Contact us at <strong>{SUPPORT_MAIL}</strong></p><br>
-                        <div class="footer">
-                            Warm Regards, <br>
-                            <strong>Lead Management Team<strong><br>
-                            {f"({created_by})" if created_by else ""}
-                        </div>
-                    </div>
-                </body>
-            </html>
+                                    <!-- Sign-off Block -->
+                                    <p style="margin: 0; font-size: 15px; color: #4f5d73; line-height: 1.5;">
+                                        Regards,<br>
+                                        <strong style="color: #0b1a30; font-weight: bold;">Lead Management Team</strong>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        <!-- Footer Section -->
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px;">
+                            <tr>
+                                <td style="padding: 25px 40px; align: center; text-align: center; font-size: 12px; color: #8a94a6;">
+                                    &copy; 2026 Lead Management Portal. All rights reserved.
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
         """
 
         asyncio.run(MailService.send_mail(email, subject, html_message))
@@ -77,37 +122,76 @@ class MailTemplatesService:
     def send_otp_template(email: str, otp: str):
         masked_email = MailTemplatesService.mask_email(email)
         subject = "Your One-Time Password (OTP) for Lead Management Portal."
+        
         html_message = f"""
-            <html>
-                <body>
-                    <div>
-                        <h2>🔐 OTP Verification</h2>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333333; -webkit-font-smoothing: antialiased;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #f4f6f8; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e1e4e8; border-bottom: none;">
+                            <!-- Header Section -->
+                            <tr>
+                                <td style="background-color: #c26d03; padding: 35px 40px;">
+                                    <p style="margin: 0 0 10px 0; color: rgba(255, 255, 255, 0.7); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">LEAD MANAGEMENT PORTAL</p>
+                                    <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 400; letter-spacing: -0.5px;">🔐 OTP Verification</h1>
+                                </td>
+                            </tr>
+                            <!-- Body Section -->
+                            <tr>
+                                <td style="padding: 40px;">
+                                    <p style="margin: 0 0 20px 0; font-size: 15px; color: #333333;">Dear <strong style="color: #111111;">{masked_email}</strong>,</p>
+                                    
+                                    <p style="margin: 0 0 25px 0; font-size: 15px; line-height: 1.6; color: #4f5d73;">
+                                        You have requested a secure verification action. Please use the following One-Time Password (OTP) to complete your request:
+                                    </p>
 
-                        <p>Dear <strong>{masked_email}</strong>,</p>
+                                    <!-- OTP Display Box Block -->
+                                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 30px 0;">
+                                        <tr>
+                                            <td align="center" style="background-color: #fdfaf4; border: 1px dashed #c26d03; padding: 20px; border-radius: 6px;">
+                                                <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #c26d03;">{otp}</span>
+                                            </td>
+                                        </tr>
+                                    </table>
 
-                        <p>Your One-Time Password (OTP) is:</p>
+                                    <p style="margin: 0 0 25px 0; font-size: 14px; line-height: 1.5; color: #d93838; font-weight: 500;">
+                                        ⏳ <strong>Important Note:</strong> This OTP code is valid for exactly <strong>10 minutes</strong> and can only be used once. Please do not share this code with anyone.
+                                    </p>
 
-                        <div class="highlight" style="text-align:center;">
-                            <div class="otp">{otp}</div>
-                        </div>
+                                    <p style="margin: 0 0 40px 0; font-size: 15px; line-height: 1.6; color: #4f5d73;">
+                                        Didn't request this? Please ignore this message, or contact our support team at <a href="mailto:{SUPPORT_MAIL}" style="color: #c26d03; text-decoration: none; font-weight: 500;">{SUPPORT_MAIL}</a> if you notice suspicious activity.
+                                    </p>
 
-                        <p>
-                            This OTP is valid for <strong>10 minutes</strong>.  
-                            Please do not share it with anyone.
-                        </p>
-                        <br>
-                        <p>Need help? Contact us at <strong>{SUPPORT_MAIL}</strong></p><br>
-                        <div class="footer">
-                            Warm Regards,<br>
-                            <strong>Lead Management Team<strong>
-                        </div>
-                    </div>
-                </body>
-            </html>
+                                    <!-- Sign-off Block -->
+                                    <p style="margin: 0; font-size: 15px; color: #4f5d73; line-height: 1.5;">
+                                        Regards,<br>
+                                        <strong style="color: #0b1a30; font-weight: bold;">Lead Management Team</strong>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        <!-- Footer Section -->
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px;">
+                            <tr>
+                                <td style="padding: 25px 40px; align: center; text-align: center; font-size: 12px; color: #8a94a6;">
+                                    &copy; 2026 Lead Management Portal. All rights reserved.
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
         """
 
         asyncio.run(MailService.send_mail(email, subject, html_message))
-
 
 
     @staticmethod
@@ -115,38 +199,75 @@ class MailTemplatesService:
     def send_notif_password_change(email: str):
         masked_email = MailTemplatesService.mask_email(email)
         subject = "Your Lead Management Password Has Been Changed"
+        
         html_message = f"""
-            <html>
-                <body>
-                    <div>
-                        <h2>🔒 Password Changed</h2>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333333; -webkit-font-smoothing: antialiased;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #f4f6f8; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e1e4e8; border-bottom: none;">
+                            <!-- Header Section -->
+                            <tr>
+                                <td style="background-color: #c26d03; padding: 35px 40px;">
+                                    <p style="margin: 0 0 10px 0; color: rgba(255, 255, 255, 0.7); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">LEAD MANAGEMENT PORTAL</p>
+                                    <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 400; letter-spacing: -0.5px;">🔒 Password Changed</h1>
+                                </td>
+                            </tr>
+                            <!-- Body Section -->
+                            <tr>
+                                <td style="padding: 40px;">
+                                    <p style="margin: 0 0 20px 0; font-size: 15px; color: #333333;">Dear <strong style="color: #111111;">{masked_email}</strong>,</p>
+                                    
+                                    <p style="margin: 0 0 25px 0; font-size: 15px; line-height: 1.6; color: #4f5d73;">
+                                        This email confirms that the password for your Lead Management Portal account has been <strong>changed successfully</strong>.
+                                    </p>
 
-                        <p>Dear <strong>{masked_email}</strong>,</p>
+                                    <!-- Security Alert Box -->
+                                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fff5f5; border-left: 4px solid #d93838; margin: 25px 0; border-radius: 0 4px 4px 0;">
+                                        <tr>
+                                            <td style="padding: 15px 20px;">
+                                                <p style="margin: 0 0 5px 0; font-size: 14px; color: #d93838; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">⚠️ Security Alert</p>
+                                                <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #555555;">
+                                                    If you did <strong>NOT</strong> initiate this change, please take immediate action to secure your account or contact our support team.
+                                                </p>
+                                            </td>
+                                        </tr>
+                                    </table>
 
-                        <p>
-                            This is to inform you that your Lead Management Portal account password has been
-                            <strong>changed successfully</strong>.
-                        </p>
+                                    <p style="margin: 0 0 40px 0; font-size: 15px; line-height: 1.6; color: #4f5d73;">
+                                        Need assistance? Get in touch with us at <a href="mailto:{SUPPORT_MAIL}" style="color: #c26d03; text-decoration: none; font-weight: 500;">{SUPPORT_MAIL}</a>.
+                                    </p>
 
-                        <div class="highlight">
-                            <p>
-                                If you did <strong>NOT</strong> initiate this change,  
-                                please contact support immediately.
-                            </p>
-                        </div>
-                        <br>
-                        <p>Need help? Contact us at <strong>{SUPPORT_MAIL}</strong></p><br>
-
-                        <div class="footer">
-                            Warm Regards,<br>
-                            <strong>Lead Management Team<strong>
-                        </div>
-                    </div>
-                </body>
-            </html>
+                                    <!-- Sign-off Block -->
+                                    <p style="margin: 0; font-size: 15px; color: #4f5d73; line-height: 1.5;">
+                                        Regards,<br>
+                                        <strong style="color: #0b1a30; font-weight: bold;">Lead Management Team</strong>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        <!-- Footer Section -->
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px;">
+                            <tr>
+                                <td style="padding: 25px 40px; align: center; text-align: center; font-size: 12px; color: #8a94a6;">
+                                    &copy; 2026 Lead Management Portal. All rights reserved.
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
         """
-        asyncio.run(MailService.send_mail(email, subject, html_message))
 
+        asyncio.run(MailService.send_mail(email, subject, html_message))
 
 
     @staticmethod
@@ -155,25 +276,74 @@ class MailTemplatesService:
         """
         Generic task to send custom emails, mimicking a Gmail compose action.
         """
+        formatted_body = body.replace("\n", "<br>")
+
         html_message = f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333;">
-                <div>Dear Sir/Ma'am </div>
-                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                        {body}
-                    </div>
-                    <div>
-                        <center>Thankyou For Your Important Time</center>
-                    </div>
-                    <br>
-                    <p>Need help? Contact us at <strong>{SUPPORT_MAIL}</strong></p><br>
-                    <div>
-                        Warm Regards,<br>
-                        <strong>Lead Management Team</strong>
-                    </div>
-                </body>
-            </html>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333333; -webkit-font-smoothing: antialiased;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #f4f6f8; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #e1e4e8; border-bottom: none;">
+                            <!-- Header Section -->
+                            <tr>
+                                <td style="background-color: #c26d03; padding: 35px 40px;">
+                                    <p style="margin: 0 0 10px 0; color: rgba(255, 255, 255, 0.7); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">LEAD MANAGEMENT PORTAL</p>
+                                    <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 400; letter-spacing: -0.5px;">Official Announcement</h1>
+                                </td>
+                            </tr>
+                            <!-- Body Section -->
+                            <tr>
+                                <td style="padding: 40px;">
+                                    <p style="margin: 0 0 20px 0; font-size: 15px; color: #333333;">Dear Sir/Ma'am,</p>
+                                    
+                                    <!-- Dynamic Compose Body Area -->
+                                    <div style="margin: 0 0 30px 0; font-size: 15px; line-height: 1.6; color: #4f5d73;">
+                                        {formatted_body}
+                                    </div>
+
+                                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 25px 0; text-align: center;">
+                                        <tr>
+                                            <td style="font-size: 14px; color: #c26d03; font-style: italic; font-weight: 500;">
+                                                Thank you for your valuable time.
+                                            </td>
+                                        </tr>
+                                    </table>
+
+                                    <p style="margin: 0 0 40px 0; font-size: 15px; line-height: 1.6; color: #4f5d73;">
+                                        Need help? Contact us at <a href="mailto:{SUPPORT_MAIL}" style="color: #c26d03; text-decoration: none; font-weight: 500;">{SUPPORT_MAIL}</a>.
+                                    </p>
+
+                                    <!-- Sign-off Block -->
+                                    <p style="margin: 0; font-size: 15px; color: #4f5d73; line-height: 1.5;">
+                                        Warm Regards,<br>
+                                        <strong style="color: #0b1a30; font-weight: bold;">Lead Management Team</strong>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        <!-- Footer Section -->
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px;">
+                            <tr>
+                                <td style="padding: 25px 40px; align: center; text-align: center; font-size: 12px; color: #8a94a6;">
+                                    &copy; 2026 Lead Management Portal. All rights reserved.
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
         """
 
         asyncio.run(MailService.send_mail(email_to, subject, html_message))
+
+
+
 
