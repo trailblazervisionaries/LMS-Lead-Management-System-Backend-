@@ -1,7 +1,12 @@
 from app.core.mail_service import MailService
 from celery import shared_task
 import asyncio
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
+
+SUPPORT_MAIL = os.getenv("SUPPORT_MAIL","sales@lmps.com")
 class MailTemplatesService:
     @staticmethod
     def mask_email(email:str):
@@ -52,10 +57,11 @@ class MailTemplatesService:
                         <p>
                             ⚠️ <strong>Security Note:</strong>  
                             This is a temporary password. Please change it immediately after logging in.
-                        </p>
-
+                        </p><br>
+                        <p>Need help? Contact us at <strong>{SUPPORT_MAIL}</strong></p><br>
                         <div class="footer">
-                            Lead Management Portal Team <br>
+                            Warm Regards, <br>
+                            <strong>Lead Management Team<strong><br>
                             {f"({created_by})" if created_by else ""}
                         </div>
                     </div>
@@ -89,9 +95,11 @@ class MailTemplatesService:
                             This OTP is valid for <strong>10 minutes</strong>.  
                             Please do not share it with anyone.
                         </p>
-
+                        <br>
+                        <p>Need help? Contact us at <strong>{SUPPORT_MAIL}</strong></p><br>
                         <div class="footer">
-                            Lead Management Portal Team
+                            Warm Regards,<br>
+                            <strong>Lead Management Team<strong>
                         </div>
                     </div>
                 </body>
@@ -106,7 +114,7 @@ class MailTemplatesService:
     @shared_task(name="app.template.send_template_mail.send_notif_password_change")
     def send_notif_password_change(email: str):
         masked_email = MailTemplatesService.mask_email(email)
-        subject = "Your Lead Management Portal Password Has Been Changed"
+        subject = "Your Lead Management Password Has Been Changed"
         html_message = f"""
             <html>
                 <body>
@@ -126,9 +134,12 @@ class MailTemplatesService:
                                 please contact support immediately.
                             </p>
                         </div>
+                        <br>
+                        <p>Need help? Contact us at <strong>{SUPPORT_MAIL}</strong></p><br>
 
                         <div class="footer">
-                            Lead Management Portal Team
+                            Warm Regards,<br>
+                            <strong>Lead Management Team<strong>
                         </div>
                     </div>
                 </body>
@@ -147,8 +158,18 @@ class MailTemplatesService:
         html_message = f"""
             <html>
                 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333333;">
+                <div>Dear Sir/Ma'am </div>
                     <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
                         {body}
+                    </div>
+                    <div>
+                        <center>Thankyou For Your Important Time</center>
+                    </div>
+                    <br>
+                    <p>Need help? Contact us at <strong>{SUPPORT_MAIL}</strong></p><br>
+                    <div>
+                        Warm Regards,<br>
+                        <strong>Lead Management Team</strong>
                     </div>
                 </body>
             </html>

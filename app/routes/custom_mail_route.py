@@ -15,6 +15,6 @@ async def compose_and_send_email(
     if request.state.user.role not in ["admin", "assistant"]:
         raise HTTPException(403, "Unauthorized to send custom emails")
         
-    return CustomMailService.send_custom_email_(data.email_to, data.body)
+    return await CustomMailService.send_custom_email_(data.email_to, data.subject, data.body)
 
 
