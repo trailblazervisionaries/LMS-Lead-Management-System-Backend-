@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 # safe env reads with defaults and strip
 RAW_EMAIL = os.getenv("FROM_EMAIL").strip()
-EMAIL_FROM = f"InvestmentPortal (no-reply) <{RAW_EMAIL}>"
+EMAIL_FROM = f"Lead Management (no-reply) <{RAW_EMAIL}>"
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com").strip()
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587").strip())
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "").strip()
