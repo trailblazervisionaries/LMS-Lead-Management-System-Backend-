@@ -58,8 +58,8 @@ class MailService:
             raise HTTPException(
                 status_code=500,
                 detail=(
-                    "SMTP authentication failed. Check EMAIL_HOST_USER and EMAIL_HOST_PASSWORD. "
-                    "If using Gmail enable 2-Step Verification and create an App Password."
+                    "SMTP authentication failed. Check EMAIL HOST USER and EMAIL HOST PASSWORD. "
+                    "If you are using Gmail enable 2-Step Verification and create an App Password."
                 ),
             )
         except SMTPConnectError as e:

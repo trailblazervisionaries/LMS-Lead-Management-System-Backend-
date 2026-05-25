@@ -34,6 +34,7 @@ class AssistantService:
             # temp_password = generate_alphanumeric_password()
             temp_password = "qwerty123"
             hashed_password = hash_password(temp_password)
+            logger.info("AssistantService: Assistant passed hashed successfully.")
             new_assistant = Users(
                 user_id = generate_id(data.name),
                 name = data.name,
@@ -149,7 +150,7 @@ class AssistantService:
         )
         result = await db.execute(query_stmt)
         assistants = result.scalars().all()
-        
+        logger.info("AssistantService: all assistant with pagination returned successfully.")
         return assistants, total_count
 
 
@@ -162,6 +163,7 @@ class AssistantService:
         assistant.is_active = False
         await db.commit()
         await db.refresh(assistant)
+        logger.info("AssistantService: Assistant account deleted successfully.")
         return {
             "message": "Assistant is deleted and deactivated successfully."
         }
@@ -175,6 +177,7 @@ class AssistantService:
             .values(admin_id=new_admin_id)
         )
         result = await db.execute(stmt)
+        logger.info("AssistantService: Assign new admin inplace of old admin to all assistant.")
         if result.rowcount == 0:
             return {"message": "No assistants found for this admin."}
         await db.commit()
@@ -191,6 +194,7 @@ class AssistantService:
         assistant.is_active = True
         await db.commit()
         await db.refresh(assistant)
+        logger.info("AssistantService: Assistant account activated Successfully.")
         return {
             "message": "Assistant account activated successfully."
         }
@@ -204,6 +208,7 @@ class AssistantService:
         assistant.is_active = False
         await db.commit()
         await db.refresh(assistant)
+        logger.info("AssistantService: Assistant account deactivated Successfully.")
         return {
             "message":"Assistant account deactivated successfully."
         }

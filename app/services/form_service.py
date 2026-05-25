@@ -27,6 +27,7 @@ class FormService:
         db.add(new_template)
         await db.commit()
         await db.refresh(new_template)
+        logger.info("FormService: lead form created successfully.")
         return new_template
 
     @classmethod
@@ -50,6 +51,7 @@ class FormService:
 
         await db.commit()
         await db.refresh(existing_template)
+        logger.info("FormService: Lead form template updated successfully.")
         return existing_template
     
     
@@ -64,6 +66,7 @@ class FormService:
         template.is_active = True
         await db.commit()
         await db.refresh(template)
+        logger.info("FormService: from marked activated successfully")
         return template
     
 
@@ -75,6 +78,7 @@ class FormService:
         template.is_active = False
         await db.commit()
         await db.refresh(template)
+        logger.info("FormService: from marked seactiveted")
         return template
     
 

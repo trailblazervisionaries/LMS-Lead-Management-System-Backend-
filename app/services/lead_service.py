@@ -165,9 +165,9 @@ class LeadService:
 
     @classmethod
     async def assign_unassigned_leads_to_specific_user(cls, db, admin_id, data):
-            print("lead_id", data.lead_id)
+            logger.info("lead_id", data.lead_id)
             lead_assign = await LeadAssignment.get_by_lead_id(db, data.lead_id)
-            print("lead_assign data ", lead_assign.lead_id)
+            logger.info("lead_assign data ", lead_assign.lead_id)
             if lead_assign:
                 lead_assign.is_deleted = True
 
@@ -232,12 +232,12 @@ class LeadService:
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
-
+        logger.info("LeadService: leads data find successfully.")
         if role == "assistant":
             assignment = await LeadAssignment.get_assistant_by_lead_id(db, lead_id)
             if not assignment or assignment.assistant_id != user_id:
                 raise HTTPException(status_code=403, detail="Lead not assigned to this assistant")
-
+            logger.info("LeadService: Assignment data fetched Successfully.")
         if data.status:
             status_entry = LeadStatusHistory(
                 id=generate_id(user_id),
@@ -269,6 +269,7 @@ class LeadService:
             raise HTTPException(status_code=404, detail="Lead not found")
         await db.delete(lead)
         await db.commit()
+        logger.info("LeadService: lead data deleted permanantly successfully.")
         return {"detail": f"Lead with id {lead_id} deleted successfully"}
     
 
@@ -277,8 +278,10 @@ class LeadService:
         lead = await LeadResponse.get_by_id(db, lead_id)
         if not lead:
             raise HTTPException(status_code=404, detail="lead not found")
-        await db.is_deleted == True
+        lead.is_deleted == True
         await db.commit()
+        await db.refresh(lead)
+        logger.info("LeadService: lead fetched and marked deleted successfully.")
         return {"detail": f"Lead with id {lead_id} deleted successfully"}
 
 
@@ -292,7 +295,9 @@ class LeadService:
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
         if not lead:
             return None
+        logger.info("LeadService: lead data fetched successfully.")
         history = await LeadStatusHistory.get_all_lead_history(db, lead_id)
+        logger.info("LeadServices: lead history data fetched successfully.")
         return [
             {
                 "id": item.id,
@@ -313,6 +318,7 @@ class LeadService:
         
         # Validate template status
         template = await FormTemplate.get_form_by_id(db, template_id)
+        logger.info("LeadService: template data fetched successfully.")
         if not template or not template.is_active:
             raise HTTPException(status_code=404, detail="Lead form template not found or inactive")
 

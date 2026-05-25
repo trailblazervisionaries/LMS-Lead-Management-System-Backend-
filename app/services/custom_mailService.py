@@ -2,6 +2,12 @@ from app.backgroundTasks.MonitorAsync import MonitorAsync
 from app.templates.send_template_mail import MailTemplatesService
 from sqlalchemy import select
 from app.models.lead_form import LeadResponse
+from dotenv import load_dotenv
+import os
+import logging
+logger = logging.getLogger("__name__")
+load_dotenv()
+
 class CustomMailService:
 
     @staticmethod
@@ -12,6 +18,7 @@ class CustomMailService:
             subject,
             body
             )
+        logger.info("CustomMailService: custom email sent successfully.")
         return {"status": "success", "message": "Email queued for delivery successfully"}
 
     @staticmethod
@@ -23,7 +30,7 @@ class CustomMailService:
                 subject,
                 body
             )
-        
+        logger.info("CustomMailService: bulk email sent successfully.")
         return {
             "status": "success", 
             "message": f"{len(email_to)} Emails queued for delivery successfully"
@@ -41,7 +48,7 @@ class CustomMailService:
         )
         
         result = await db.execute(stmt)
-    
+        
         submitted_data_list = result.scalars().all()
         
         extracted_emails = []
@@ -68,7 +75,7 @@ class CustomMailService:
                 subject,
                 body
             )
-            
+        logger.info("CustomMailService: sent the bulk email to all the users")
         return {
             "status": "success", 
             "message": f"{len(extracted_emails)} Emails extracted and queued successfully"

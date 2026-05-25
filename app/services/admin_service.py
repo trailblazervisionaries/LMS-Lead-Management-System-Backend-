@@ -34,6 +34,7 @@ class AdminService:
             # temp_password = generate_alphanumeric_password()
             temp_password = "qwerty123"
             hashed_password = hash_password(temp_password)
+            logger.info("AdminService: admin password hashed successfully.")
             new_admin = Users(
                 user_id = generate_id(data.name),
                 name = data.name,
@@ -41,7 +42,7 @@ class AdminService:
                 email = data.email,
                 password= hashed_password,
             )
-
+            logger.info("AdminService: admin add but not commited till now.")
             new_admin.address = Address(
                 user_id=new_admin.user_id,  
                 address_line_1=data.address_line_1,
@@ -86,6 +87,7 @@ class AdminService:
     async def update_admin(cls, db, user_id: str, data: UserUpdate, request):
         admin = await Users.get_by_id_with_address(db, user_id)
         if not admin:
+            logger.erro("AdminService: Admin not found.")
             raise HTTPException(status_code=404, detail="Admin not found")
 
         try:
@@ -111,6 +113,7 @@ class AdminService:
 
             await db.commit()
             await db.refresh(admin, ["address"])
+            logger.info("AdminService: admin data updated successfully.")
             return admin
 
         except Exception as e:
@@ -132,6 +135,7 @@ class AdminService:
         admin.is_active = False
         await db.commit()
         await db.refrest()
+        logger.info("AdminService: admin account deleted successfully.")
         return {
             "message": "Admin is deleted and deactivated successfully."
         }
