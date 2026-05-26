@@ -55,7 +55,7 @@ class LeadResponse(Base):
         cascade="all, delete-orphan", 
         order_by="desc(LeadRemarks.created_at)" # FIXED: String or name reference preferred here
     )
-    assignments = relationship("LeadAssignment", back_populates="lead")
+    assignments = relationship("LeadAssignment", back_populates="lead", cascade="all, delete-orphan")
     status_history = relationship(
         "LeadStatusHistory", 
         back_populates="lead", 
