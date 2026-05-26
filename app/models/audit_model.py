@@ -5,12 +5,13 @@ from datetime import datetime, time
 
 
 class AuditLogs(Base):
+    __tablename__ = "auditlogs"
     id = Column(String, primary_key = True)
     entity_name = Column(String, nullable = False)
     entity_id = Column(String, nullable = False)
     log_type = Column(String, nullable = False)
     prev_data = Column(JSON, nullable = True)
-    new_data = Column(JSON, Nullable = True)
+    new_data = Column(JSON, nullable = True)
     added_by = Column(String, nullable = False, index= True)
     admin_id = Column(String, nullable = False, index = True)
     created_at = Column( DateTime, default = datetime.utcnow)
