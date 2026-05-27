@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.core.utils_functions import generate_id
-from sqlalchemy import select, insert, func, or_
+from sqlalchemy import select, insert, func, or_, delete
 from datetime import datetime
 from dotenv import load_dotenv
 from app.models.lead_form import (
@@ -267,23 +267,31 @@ class LeadService:
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
+
+        await db.execute(
+            delete(LeadAssignment).where(LeadAssignment.lead_id == lead_id)
+        )
+        await db.execute(
+            delete(LeadRemarks).where(LeadRemarks.for_lead == lead_id)
+        )
+        await db.execute(
+            delete(LeadStatusHistory).where(LeadStatusHistory.lead_id == lead_id)
+        )
         await db.delete(lead)
         await db.commit()
-        logger.info("LeadService: lead data deleted permanantly successfully.")
-        return {"detail": f"Lead with id {lead_id} deleted successfully"}
-    
+        logger.info("LeadService: lead data deleted permanently successfully.")
+        return {"detail": f"Lead with id {lead_id} deleted successfully."}
+
 
     @classmethod
     async def lead_mark_deleted(cls, db, lead_id):
         lead = await LeadResponse.get_by_id(db, lead_id)
         if not lead:
-            raise HTTPException(status_code=404, detail="lead not found")
-        lead.is_deleted == True
+            raise HTTPException(status_code=404, detail="lead not found.")
+        lead.is_deleted = True
         await db.commit()
         await db.refresh(lead)
-        logger.info("LeadService: lead fetched and marked deleted successfully.")
-        return {"detail": f"Lead with id {lead_id} deleted successfully"}
-
+        return {"detail": f"Lead with id : {lead_id} marked deleted successfully."}
 
     @classmethod
     async def get_todays_followups(cls, db: Session, date: str, assistant_id: str = None, admin_id: str = None):

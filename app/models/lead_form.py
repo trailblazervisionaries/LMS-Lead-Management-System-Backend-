@@ -35,7 +35,6 @@ class FormTemplate(Base):
         return result.scalars().all()
 
 
-# status ->> Converted, Pending, InDiscussion, Rejected
 
 class LeadResponse(Base):
     __tablename__ = "lead_responses"
@@ -53,12 +52,14 @@ class LeadResponse(Base):
         "LeadRemarks", 
         back_populates="lead", 
         cascade="all, delete-orphan", 
-        order_by="desc(LeadRemarks.created_at)" # FIXED: String or name reference preferred here
+        order_by="desc(LeadRemarks.created_at)"
     )
     assignments = relationship("LeadAssignment", back_populates="lead", cascade="all, delete-orphan")
     status_history = relationship(
         "LeadStatusHistory", 
         back_populates="lead", 
+        cascade="all, delete-orphan",
+        passive_deletes=True,
         order_by="LeadStatusHistory.created_at"
     )
 
@@ -131,12 +132,10 @@ class LeadResponse(Base):
     @classmethod
     async def get_all_by_admin_id(cls, db, admin_id, page=1, size=20):
         offset = (page - 1) * size
-        
-        # 1. Query to fetch Leads along with their active Assistant relationship
+
         stmt = (
             select(LeadResponse)
             .where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
-            # Eagerly load assignments and their nested assistant users to prevent N+1 queries
             .options(
                 selectinload(LeadResponse.assignments).selectinload(LeadAssignment.assistant)
             )
@@ -148,23 +147,18 @@ class LeadResponse(Base):
         result = await db.execute(stmt)
         leads = result.scalars().all()
 
-        # 2. Get total counts for pagination
         count_stmt = select(func.count(LeadResponse.id)).where(
             LeadResponse.admin_id == admin_id, 
-            LeadResponse.is_deleted == False
+            LeadResponse.is_deleted == False  
         )
         total_count = (await db.execute(count_stmt)).scalar() or 0
 
-        # 3. Format payload payload structure
         formatted_items = []
         for lead in leads:
-            # Filter for active, non-deleted assignments
             active_assignments = [a for a in lead.assignments if not a.is_deleted]
             
-            # Get the latest active assistant if assigned
             assigned_assistant = None
             if active_assignments:
-                # Sort by created_at to get the most recent assignment if multiple exist
                 latest_assignment = sorted(active_assignments, key=lambda x: x.created_at, reverse=True)[0]
                 assistant_user = latest_assignment.assistant
                 
@@ -172,7 +166,7 @@ class LeadResponse(Base):
                     assigned_assistant = {
                         "assignment_id": latest_assignment.id,
                         "assistant_id": assistant_user.user_id,
-                        "name": getattr(assistant_user, "name", None),  # Adjust based on your Users model attributes
+                        "name": getattr(assistant_user, "name", None),  
                         "email": assistant_user.email,
                         "assigned_at": latest_assignment.created_at.isoformat() if latest_assignment.created_at else None
                     }
@@ -283,7 +277,7 @@ class LeadResponse(Base):
 
 
 class LeadRemarks(Base):
-    __tablename__ = "lead_remarks" # Fixed typo from "reamrks"
+    __tablename__ = "lead_remarks" 
     
     id = Column(String, primary_key=True)
     for_lead = Column(String, ForeignKey("lead_responses.id"))
@@ -321,11 +315,9 @@ class LeadRemarks(Base):
         except ValueError:
             raise ValueError("Invalid date format. Expected 'ddmmyyyy' string (e.g., 20052026).")
 
-        # today_start = datetime.combine(datetime.utcnow().date(), time.min)
         from_date = datetime.combine(parsed_date, time.min)
         today_end = datetime.combine(datetime.utcnow().date(), time.max)
 
-        # Start query from LeadRemarks
         query = (
             select(LeadRemarks)
             .join(LeadResponse, LeadRemarks.for_lead == LeadResponse.id)
@@ -358,14 +350,12 @@ class LeadStatusHistory(Base):
     __tablename__ = "lead_status_history"
 
     id = Column(String, primary_key=True)
-    lead_id = Column(String, ForeignKey("lead_responses.id"), nullable=False)
+    lead_id = Column(String, ForeignKey("lead_responses.id", ondelete="CASCADE"), nullable=False)
     # The status at this point (e.g., "Created", "Assigned", "Contacted", "Interested", "Converted")
     status = Column(String, nullable=False)
-    # Optional: Track who made the change (the Admin or Assistant)
     changed_by = Column(String, ForeignKey("users.user_id"), nullable=True)
     
     is_deleted = Column(Boolean, default = False)
-    # This creates your "1 April 2026", "2 April 2026" timeline
     created_at = Column(DateTime, default=datetime.utcnow)
 
     lead = relationship("LeadResponse", back_populates="status_history")
