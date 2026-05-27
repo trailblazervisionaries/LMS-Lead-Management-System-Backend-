@@ -134,7 +134,6 @@ async def mark_delete_lead_data(lead_id: str, request: Request, db: Session = De
     return result
 
 
-
 @router.get("/lead-counters")
 async def get_dashboard_counters(request: Request, db: Session = Depends(get_db)):
     user_id = request.state.user.user_id
@@ -150,5 +149,6 @@ async def get_dashboard_counters(request: Request, db: Session = Depends(get_db)
         raise HTTPException(status_code=403, detail="Unauthorized role access profile")
 
     return stats
+
 
 
