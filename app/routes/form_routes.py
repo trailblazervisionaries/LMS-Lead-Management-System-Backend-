@@ -45,7 +45,7 @@ async def update_template(template_id: str, data: FormTemplateUpdate, request: R
 @router.get("/templates", response_model=list[FormTemplateResponse])
 async def list_templates(request: Request, db: Session = Depends(get_db)):
     role = request.state.user.role
-    if role != "admin":
+    if role in ("admin", "assistant"):
         raise HTTPException(status_code=403, detail="Only admins can list templates")
     templates = await FormService.get_templates_by_admin(db, request.state.user.user_id)
     return templates

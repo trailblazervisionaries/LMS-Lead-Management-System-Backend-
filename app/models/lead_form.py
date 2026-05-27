@@ -280,7 +280,7 @@ class LeadRemarks(Base):
     __tablename__ = "lead_remarks" 
     
     id = Column(String, primary_key=True)
-    for_lead = Column(String, ForeignKey("lead_responses.id"))
+    for_lead = Column(String, ForeignKey("lead_responses.id", ondelete="CASCADE"))
     remarks = Column(String, nullable=True)
     # --- FOLLOW-UP FIELDS ---
     # If this is null, it's just a note. If populated, it's a scheduled task.
@@ -377,7 +377,7 @@ class LeadAssignment(Base):
     __tablename__ = "lead_assignments"
 
     id = Column(String, primary_key=True)
-    lead_id = Column(String, ForeignKey("lead_responses.id"), nullable=False)
+    lead_id = Column(String, ForeignKey("lead_responses.id", ondelete="CASCADE"), nullable=False)
     assistant_id = Column(String, ForeignKey("users.user_id"), nullable=False)
     is_deleted = Column(Boolean, default = False)
     created_at = Column(DateTime, default=datetime.utcnow)
