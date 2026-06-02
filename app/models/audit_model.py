@@ -2,7 +2,9 @@ from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship, selectinload, joinedload
 from app.config.database import Base
 from datetime import datetime, time
-
+from app.core.utils_functions import generate_id
+import logging
+logger = logging.getLogger(__name__)
 
 class AuditLogs(Base):
     __tablename__ = "auditlogs"
@@ -17,6 +19,26 @@ class AuditLogs(Base):
     created_at = Column( DateTime, default = datetime.utcnow)
 
 
+    @classmethod
+    async def add_audit_log(cls, db, entity_name, entity_id, log_type, prev_data, new_data, added_by, admin_id):
+        new_audit = AuditLogs(
+            id = generate_id(admin_id),
+            entity_name = entity_name,
+            entity_id = entity_id,
+            log_type = log_type,
+            prev_data = prev_data,
+            new_data = new_data,
+            added_by = added_by,
+            admin_id = admin_id
+        )
+        db.add(new_audit)
+        await db.commit()
+        await db.refresh(new_audit)
+        logger.info("AuditLogs: new log added successfully.")
+        return {
+            "message" : "New audit data added successfully."
+        }
+
 
     @staticmethod
     def _apply_date_filter(query, from_date, to_date):
@@ -30,37 +52,24 @@ class AuditLogs(Base):
     @staticmethod
     def _apply_filters(query, filters: dict):
         conditions = []
-
         for field, value in filters.items():
             if value is not None:
                 conditions.append(getattr(AuditLogs, field) == value)
-
         if conditions:
             query = query.where(and_(*conditions))
-
         return query
 
 
     @classmethod
     async def _fetch_logs(
-        cls,
-        db,
-        filters: dict = None,
-        from_date=None,
-        to_date=None,
-        page: int = 1,
-        page_size: int = 10,
+        cls, db, filters: dict = None, from_date=None, to_date=None, page: int = 1, page_size: int = 10
     ):
         query = select(cls)
-
-        # Apply dynamic filters
         if filters:
             query = cls._apply_filters(query, filters)
 
-        # Apply date filter
         query = cls._apply_date_filter(query, from_date, to_date)
 
-        # Pagination
         offset = (page - 1) * page_size
         query = query.offset(offset).limit(page_size)
 
@@ -101,15 +110,7 @@ class AuditLogs(Base):
 
     @classmethod
     async def get_by_admin_with_filters(
-        cls,
-        db,
-        admin_id,
-        entity_name=None,
-        log_type=None,
-        from_date=None,
-        to_date=None,
-        page=1,
-        page_size=10,
+        cls, db, admin_id, entity_name=None, log_type=None, from_date=None, to_date=None, page=1, page_size=10,
     ):
         return await cls._fetch_logs(
             db,
@@ -128,15 +129,7 @@ class AuditLogs(Base):
 
     @classmethod
     async def get_by_added_by_with_filters(
-        cls,
-        db,
-        added_by,
-        entity_name=None,
-        log_type=None,
-        from_date=None,
-        to_date=None,
-        page=1,
-        page_size=10,
+        cls, db, added_by, entity_name=None, log_type=None, from_date=None, to_date=None, page=1, page_size=10,
     ):
         return await cls._fetch_logs(
             db,
@@ -150,5 +143,7 @@ class AuditLogs(Base):
             page=page,
             page_size=page_size,
         )
+
+
 
 

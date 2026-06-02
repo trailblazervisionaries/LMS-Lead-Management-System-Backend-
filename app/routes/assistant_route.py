@@ -85,11 +85,11 @@ async def deleted_assistant_account(request: Request, assistant_id: str, db: Ses
 
 
 
-@router.post("/reassign-admin/{old_admin_id}/{new_admin_id}")
-async def assign_new_admin_to_assistant(request: Request, old_admin_id: str, new_admin_id: str, db: Session = Depends(get_db)):
-    if request.state.user.role != "admin":
-        raise HTTPException(403, "You don't have the required permission to perform this operation")
-    return await AssistantService.assign_new_admin_to_assistants(db, old_admin_id, new_admin_id)
+# @router.post("/reassign-admin/{old_admin_id}/{new_admin_id}")
+# async def assign_new_admin_to_assistant(request: Request, old_admin_id: str, new_admin_id: str, db: Session = Depends(get_db)):
+#     if request.state.user.role != "admin":
+#         raise HTTPException(403, "You don't have the required permission to perform this operation")
+#     return await AssistantService.assign_new_admin_to_assistants(db, old_admin_id, new_admin_id)
 
 
 @router.get("/allassistant/name/id/{admin_id}", response_model=list[AssistantNameIdResponse])

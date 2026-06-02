@@ -29,7 +29,7 @@ class LeadService:
         template = await FormTemplate.get_form_by_id(db, data.template_id)
         if not template or not template.is_active:
             raise HTTPException(status_code=404, detail="Lead form template not found or inactive")
-
+        logger.info("LeadService: Template found for the peovided id.")
         admin_id = template.admin_id
         lead_duplicate = await LeadResponse.get_lead(
             db,
@@ -58,8 +58,9 @@ class LeadService:
         db.add(created_status)
         await db.commit()
         await db.refresh(new_lead)
-
+        logger.info("LeadService: new lead with their status history created successfully.")
         await cls.auto_assign_lead(db, admin_id, new_lead.id)
+        logger.info("LeadService: lead auto assigned amoung the available assistants.")
         return new_lead
 
 
@@ -75,7 +76,7 @@ class LeadService:
         assistants = result.scalars().all()
         if not assistants:
             return None
-
+        logger.info("LeadService:fetched the detials of available Assistants for assigning the leads.")
         least_assigned = None
         lowest_count = None
         for assistant in assistants:
@@ -90,7 +91,7 @@ class LeadService:
 
         if not least_assigned:
             return None
-
+    
         new_assignment = LeadAssignment(
             id=generate_id(lead_id),
             lead_id=lead_id,
@@ -105,6 +106,7 @@ class LeadService:
 
         db.add(new_assignment)
         db.add(assigned_status)
+        logger.info("LeadService: Lead is assigned and the status history also changed successfully.")
         await db.commit()
         return new_assignment
 
@@ -114,7 +116,7 @@ class LeadService:
         unassigned_leads = await LeadAssignment.get_unassigned_leads_by_admin(db, admin_id)
         if not unassigned_leads:
             return {"leads_assigned": 0, "assistants_involved": 0}
-
+        logger.info("LeadService: collected the data od unassigned leads.")
         assistant_stmt = select(Users).where(
             Users.admin_id == admin_id,
             Users.role == "assistant",
@@ -125,7 +127,7 @@ class LeadService:
         assistants = result.scalars().all()
         if not assistants:
             return {"leads_assigned": 0, "assistants_involved": 0}
-
+        logger.info("LeadService: Fetched the assistant data to assignmen the leads.")
         counts = {}
         for assistant in assistants:
             counts[assistant.user_id] = 0
@@ -155,6 +157,7 @@ class LeadService:
             assignments_created += 1
 
         if assignments_created:
+            logger.info("LeadService: leads assigned successfully and lead status also changed successsfully.")
             await db.commit()
 
         return {
@@ -216,6 +219,7 @@ class LeadService:
         db.add(status)
         await db.commit()
         await db.refresh()
+        logger.info("LeadService: Lead is assignd to a specific assistant.")
         return new_assignment
     
 
@@ -223,9 +227,11 @@ class LeadService:
     async def get_leads_for_admin(cls, db: Session, admin_id: str, page: int = 1, size: int = 20):
         return await LeadResponse.get_all_by_admin_id(db, admin_id, page, size)
 
+
     @classmethod
     async def get_leads_for_assistant(cls, db: Session, assistant_id: str, page: int = 1, size: int = 20):
         return await LeadAssignment.get_all_paginated_leads_by_assistant_id(db, assistant_id, page, size)
+
 
     @classmethod
     async def update_lead(cls, db: Session, lead_id: str, user_id: str, role: str, data):
@@ -246,6 +252,7 @@ class LeadService:
                 changed_by=user_id,
             )
             db.add(status_entry)
+            logger.inf("LeadService: lead status history updated successfully.")
 
         if data.remarks or data.next_follow_up_date is not None or data.is_completed is not None:
             remark_entry = LeadRemarks(
@@ -256,7 +263,7 @@ class LeadService:
                 is_completed=data.is_completed if data.is_completed is not None else False,
             )
             db.add(remark_entry)
-
+            logger.info("LeadService: lead remarks add successfully.")
         await db.commit()
         await db.refresh(lead)
         return lead
@@ -292,6 +299,7 @@ class LeadService:
         await db.commit()
         await db.refresh(lead)
         return {"detail": f"Lead with id : {lead_id} marked deleted successfully."}
+
 
     @classmethod
     async def get_todays_followups(cls, db: Session, date: str, assistant_id: str = None, admin_id: str = None):

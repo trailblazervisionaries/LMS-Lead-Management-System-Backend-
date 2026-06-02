@@ -169,21 +169,21 @@ class AssistantService:
         }
 
 
-    @classmethod
-    async def assign_new_admin_to_assistants(cls, db, old_admin_id, new_admin_id):
-        stmt = (
-            update(Users)
-            .where(Users.admin_id == old_admin_id, Users.is_deleted == False)
-            .values(admin_id=new_admin_id)
-        )
-        result = await db.execute(stmt)
-        logger.info("AssistantService: Assign new admin inplace of old admin to all assistant.")
-        if result.rowcount == 0:
-            return {"message": "No assistants found for this admin."}
-        await db.commit()
-        return {
-            "message": f"Admin ID updated for {result.rowcount} assistant(s)."
-        }
+    # @classmethod
+    # async def assign_new_admin_to_assistants(cls, db, old_admin_id, new_admin_id):
+    #     stmt = (
+    #         update(Users)
+    #         .where(Users.admin_id == old_admin_id, Users.is_deleted == False)
+    #         .values(admin_id=new_admin_id)
+    #     )
+    #     result = await db.execute(stmt)
+    #     logger.info("AssistantService: Assign new admin inplace of old admin to all assistant.")
+    #     if result.rowcount == 0:
+    #         return {"message": "No assistants found for this admin."}
+    #     await db.commit()
+    #     return {
+    #         "message": f"Admin ID updated for {result.rowcount} assistant(s)."
+    #     }
 
 
     @classmethod
