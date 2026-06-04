@@ -256,7 +256,7 @@ class LeadService:
                 changed_by=user_id,
             )
             db.add(status_entry)
-            logger.inf("LeadService: lead status history updated successfully.")
+            logger.info("LeadService: lead status history updated successfully.")
 
         if data.remarks or data.next_follow_up_date is not None or data.is_completed is not None:
             remark_entry = LeadRemarks(

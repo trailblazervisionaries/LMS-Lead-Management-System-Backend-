@@ -38,7 +38,7 @@ async def upload_excel_leads(
 
 @router.get("/fetch/{lead_id}", response_model = LeadResponseModel)
 async def fetch_lead_by_lead_id(request: Request, lead_id: str, db: Session = Depends(get_db)):
-    lead = LeadService.get_lead_by_id(db, lead_id)
+    lead = await LeadService.get_lead_by_id(db, lead_id)
     return LeadResponseModel.model_validate(lead)
 
 
