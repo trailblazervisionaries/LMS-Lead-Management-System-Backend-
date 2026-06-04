@@ -125,7 +125,8 @@ class FormService:
     async def render_embed_loader_script(cls, db: Session, admin_id: str, template_id: str):
         template = await FormTemplate.get_form_by_id(db, template_id)
         if not template or not template.is_active:
-            return HTMLResponse("<p>Form not found</p>", status_code=404)
+            # return HTMLResponse("<p>Form not found</p>", status_code=404)
+            return HTMLResponse("<p>Sorry :( ,Form Template with Provided Template Id Not Found.</p>", media_type="application/javascript")
 
         schema = template.schema_definition or {}
         backend_url = (BACKEND_BASE_URL).rstrip("/")
