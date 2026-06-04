@@ -110,6 +110,10 @@ class LeadService:
         await db.commit()
         return new_assignment
 
+    async def get_lead_by_id(db, lead_id):
+        stmt = (select(LeadResponse).where(LeadResponse.id == lead_id))
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
     @classmethod
     async def assign_unassigned_leads(cls, db: Session, admin_id: str):

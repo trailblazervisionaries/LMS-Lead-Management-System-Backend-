@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from app.config.database import get_db
 from app.services.meeting_service import MeetingService
 from sqlalchemy.ext.asyncio import AsyncSession as Session
-from app.schemas.meeting_schemas import MeetingCreateRequest, MeetingCreateResponse, MeetingUpdateRequest, MeetingDeleteRequest
+from app.schemas.meeting_schemas import MeetingCreateRequest, MeetingCreateResponse, MeetingUpdateRequest, MeetingDeleteRequest, MeetingResponse
 import logging 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -13,7 +13,7 @@ async def create_new_meeting(request: Request, data: MeetingCreateRequest, db: S
     assistant_id = request.state.user.user_id
     role = request.state.user.role
     if role != "assistant":
-        raise HTTPException(403, "You are not authorised to create the meeting.")
+        raise HTTPException(403, "Sorry :( , You are not authorised to create the meeting.")
     return MeetingService.create_zoom_meeting(db, assistant_id, data)
 
 
@@ -22,7 +22,7 @@ async def update_meeting(request: Request, meeting_id: str, data: MeetingUpdateR
     assistant_id = request.state.user.user_id
     role = request.state.user.role
     if role != "assistant":
-        raise HTTPException(403, "You are not authorised to update the meeting.")
+        raise HTTPException(403, "Sorry :( , You are not authorised to update the meeting.")
     return MeetingService.update_zoom_meeting(db, assistant_id, meeting_id, data)
 
 
@@ -30,11 +30,20 @@ async def update_meeting(request: Request, meeting_id: str, data: MeetingUpdateR
 async def delete_meetings(request: Request, meeting_id: str, data: MeetingDeleteRequest, db: Session = Depends(get_db)):
     role = request.state.user.role
     if role != "assistant":
-        raise HTTPException(403, "You are not authorised to delete the meeting.")
+        raise HTTPException(403, "Sorry :( , You are not authorised to delete the meeting.")
     return MeetingService.cancel_zoom_meeting(db, meeting_id, data.recipient_email, data.topic)
 
 
-# @router.
+@router.get("/get-meeting/{lead_id}", response_model = MeetingResponse)
+async def get_meeting(request: Request, lead_id: str, db: Session = Depends(get_db)):
+    assistant_id = request.state.user.user_id
+    role = request.state.user.role
+    if role != "assistant":
+        raise HTTPException(403, "Sorry :( , You are not authorised to get the response")
+    meet = MeetingService.get_meet_data_by_lead_id_assistant_id(db, lead_id, assistant_id)
+    return MeetingResponse.model_validate(meet)
+
+
 
 
 

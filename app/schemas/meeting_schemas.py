@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
-
+from datetime import datetime
 
 
 class MeetingCreateRequest(BaseModel):
@@ -26,9 +26,9 @@ class MeetingDeleteRequest(BaseModel):
 
 
 class MeetingCreateResponse(BaseModel):
-    meeting_id: int
-    join_url: str
-    start_url: str
+    meeting_id: str
+    public_join_url: str
+    host_start_url: str
     topic: str
     start_time: str
     email_status: str | None = None
@@ -36,6 +36,21 @@ class MeetingCreateResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class MeetingResponse(BaseModel):
+    id: str
+    lead_id: str
+    meeting_id: str
+    public_join_url: str
+    host_start_url: str
+    duration: int
+    topic: str
+    start_time: str
+    created_at: datetime
+    added_by: str
+
+    class Config:
+        from_attributes = True
 
 
 

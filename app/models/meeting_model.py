@@ -4,7 +4,8 @@ from sqlalchemy import Column, Integer, Boolean, String, DateTime, ForeignKey, s
 from datetime import datetime
 from app.core.utils_functions import generate_id
 from fastapi import HTTPException
-
+import logging
+logger = logging.getLogger(__name__)
 
 class MeetingData(Base):
     __tablename__ = "meeting_data"
@@ -58,12 +59,14 @@ class MeetingData(Base):
         db.add(new_meeting)
         await db.commit()
         await db.refresh(new_meeting)
+        logger.info("MeetingData: new meeting data saved successfully.")
         return new_meeting
 
     
     async def update_meeting_detials(db, assistant_id, lead_id, data):
         meet = await MeetingData.get_by_lead_id(db, lead_id)
         if not meet:
+            logger.info("MeetingData: no any meeting found, so you can'y able to updata that.")
             raise HTTPException(404, "no any meeting found, so you can't able to update.")
         meet.meeting_id = data["id"]
         meet.public_join_url= data["join_url"]
@@ -74,6 +77,7 @@ class MeetingData(Base):
         meet.added_by = assistant_id
         await db.commit()
         await db.refresh(meet)
+        logger.info("MeetingData: meeting data updated successfully.")
         return meet
 
 

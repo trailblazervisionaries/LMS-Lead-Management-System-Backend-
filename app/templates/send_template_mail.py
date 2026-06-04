@@ -662,6 +662,3 @@ class MailTemplatesService:
 
 
 
-
-
-
