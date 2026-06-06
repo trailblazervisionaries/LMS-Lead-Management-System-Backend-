@@ -275,6 +275,29 @@ class LeadService:
     
 
     @classmethod
+    async def get_lead_history_and_remarks(cls, db: Session, lead_id: str):
+        lead = await LeadResponse.get_lead_by_id(db, lead_id)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        
+        status_stmt = select(LeadStatusHistory).where(LeadStatusHistory.lead_id == lead_id).order_by(LeadStatusHistory.created_at.desc())
+        status_result = await db.execute(status_stmt)
+        statuses = status_result.scalars().all()
+        logger.info(f"LeadService: Fetched {len(statuses)} status history entries.")
+
+        remarks_stmt = select(LeadRemarks).where(LeadRemarks.for_lead == lead_id).order_by(LeadRemarks.created_at.desc())
+        remarks_result = await db.execute(remarks_stmt)
+        remarks = remarks_result.scalars().all()
+        logger.info(f"LeadService: Fetched {len(remarks)} remarks.")
+
+        return {
+            "lead_id": lead_id,
+            "status_history": statuses,
+            "remarks": remarks
+        }
+
+
+    @classmethod
     async def delete_lead_permanentaly(cls, db, lead_id):
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
         if not lead:

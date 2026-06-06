@@ -76,13 +76,7 @@ async def assign_unassigned_leads_(request: Request, data: NewAssignment, db: Se
 
 
 
-@router.post("/assistant/leads/{lead_id}/update", response_model=LeadResponseModel)
-async def update_lead_status(lead_id: str, data: LeadStatusUpdate, request: Request, db: Session = Depends(get_db)):
-    role = request.state.user.role
-    if role not in {"assistant", "admin"}:
-        raise HTTPException(status_code=403, detail="Only assistants or admins can update lead status")
-    result = await LeadService.update_lead(db, lead_id, request.state.user.user_id, role, data)
-    return result
+
 
 
 @router.get("/assistant/leads", response_model=LeadPaginationResponse)

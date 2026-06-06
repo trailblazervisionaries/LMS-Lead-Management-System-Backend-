@@ -97,4 +97,35 @@ class NewAssignment(BaseModel):
     assistant_id: str
     lead_id: str
 
-    
+
+
+class StatusHistoryResponse(BaseModel):
+    id: str
+    lead_id: str
+    status: str
+    changed_by: Optional[str] = None
+    is_deleted: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LeadRemarkResponse(BaseModel):
+    id: str
+    for_lead: str
+    remarks: Optional[str] = None
+    next_follow_up_date: Optional[datetime] = None
+    is_completed: bool
+    is_deleted: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LeadHistoryAndRemarks(BaseModel):
+    lead_id: str
+    status_history: List[StatusHistoryResponse]
+    remarks: List[LeadRemarkResponse]
