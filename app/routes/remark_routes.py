@@ -26,7 +26,7 @@ async def get_assistant_followups(request: Request, date: str, db: Session = Dep
     ]
 
 
-@router.post("/assistant/leads/{lead_id}/update", response_model=LeadResponseModel)
+@router.post("/assistant/leads/{lead_id}/add", response_model=LeadResponseModel)
 async def update_lead_status(lead_id: str, data: LeadStatusUpdate, request: Request, db: Session = Depends(get_db)):
     role = request.state.user.role
     if role not in {"assistant", "admin"}:
