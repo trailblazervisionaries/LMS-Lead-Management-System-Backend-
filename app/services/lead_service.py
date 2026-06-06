@@ -237,8 +237,48 @@ class LeadService:
         return await LeadAssignment.get_all_paginated_leads_by_assistant_id(db, assistant_id, page, size)
 
 
+    # @classmethod
+    # async def add_new_remark_and_status(cls, db: Session, lead_id: str, user_id: str, role: str, data):
+    #     lead = await LeadResponse.get_lead_by_id(db, lead_id)
+    #     if not lead:
+    #         raise HTTPException(status_code=404, detail="Lead not found")
+    #     logger.info("LeadService: leads data find successfully.")
+    #     if role == "assistant":
+    #         assignment = await LeadAssignment.get_assistant_by_lead_id(db, lead_id)
+    #         if not assignment or assignment.assistant_id != user_id:
+    #             raise HTTPException(status_code=403, detail="Lead not assigned to this assistant")
+    #         logger.info("LeadService: Assignment data fetched Successfully.")
+    #     if data.status:
+    #         status_entry = LeadStatusHistory(
+    #             id=generate_id(user_id),
+    #             lead_id=lead_id,
+    #             status=data.status,
+    #             changed_by=user_id,
+    #         )
+    #         db.add(status_entry)
+    #         logger.info("LeadService: lead status history updated successfully.")
+
+
+    #     if data.remarks or data.next_follow_up_date is not None or data.is_completed is not None:
+    #         remark_entry = LeadRemarks(
+    #             id=generate_id(lead_id),
+    #             for_lead=lead_id,
+    #             remarks=data.remarks,
+    #             next_follow_up_date=data.next_follow_up_date,
+    #             is_completed=data.is_completed if data.is_completed is not None else False,
+    #         )
+    #         db.add(remark_entry)
+    #         logger.info("LeadService: lead remarks add successfully.")
+    #     await db.commit()
+    #     await db.refresh(lead)
+    #     return {
+    #         "lead_id": lead_id,
+    #         "status_history": [status_entry] if status_entry else [],
+    #         "remarks": [remark_entry] if remark_entry else []
+    #     }
+    
     @classmethod
-    async def update_lead(cls, db: Session, lead_id: str, user_id: str, role: str, data):
+    async def add_new_remark_and_status(cls, db: Session, lead_id: str, user_id: str, role: str, data):
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
@@ -248,31 +288,62 @@ class LeadService:
             if not assignment or assignment.assistant_id != user_id:
                 raise HTTPException(status_code=403, detail="Lead not assigned to this assistant")
             logger.info("LeadService: Assignment data fetched Successfully.")
+        
+        status_entry = None
         if data.status:
-            status_entry = LeadStatusHistory(
-                id=generate_id(user_id),
-                lead_id=lead_id,
-                status=data.status,
-                changed_by=user_id,
+            prev_status_stmt = (
+                select(LeadStatusHistory)
+                .where(LeadStatusHistory.lead_id == lead_id)
+                .order_by(LeadStatusHistory.created_at.desc())
+                .limit(1)
             )
-            db.add(status_entry)
-            logger.info("LeadService: lead status history updated successfully.")
+            prev_status_res = await db.execute(prev_status_stmt)
+            latest_status_record = prev_status_res.scalars().first()
 
+            if not latest_status_record or latest_status_record.status != data.status:
+                status_entry = LeadStatusHistory(
+                    id=generate_id(user_id),
+                    lead_id=lead_id,
+                    status=data.status,
+                    changed_by=user_id,
+                )
+                db.add(status_entry)
+                logger.info("LeadService: lead status history updated successfully.")
+            else:
+                logger.info("LeadService: Status is identical to previous entry. Skipping insert.")
 
+        remark_entry = None
         if data.remarks or data.next_follow_up_date is not None or data.is_completed is not None:
-            remark_entry = LeadRemarks(
-                id=generate_id(lead_id),
-                for_lead=lead_id,
-                remarks=data.remarks,
-                next_follow_up_date=data.next_follow_up_date,
-                is_completed=data.is_completed if data.is_completed is not None else False,
+            prev_remark_stmt = (
+                select(LeadRemarks)
+                .where(LeadRemarks.for_lead == lead_id)
+                .order_by(LeadRemarks.created_at.desc())
+                .limit(1)
             )
-            db.add(remark_entry)
-            logger.info("LeadService: lead remarks add successfully.")
+            prev_remark_res = await db.execute(prev_remark_stmt)
+            latest_remark_record = prev_remark_res.scalars().first()
+
+            if not latest_remark_record or latest_remark_record.is_completed is True:
+                remark_entry = LeadRemarks(
+                    id=generate_id(lead_id),
+                    for_lead=lead_id,
+                    remarks=data.remarks,
+                    next_follow_up_date=data.next_follow_up_date,
+                    is_completed=data.is_completed if data.is_completed is not None else False,
+                )
+                db.add(remark_entry)
+                logger.info("LeadService: lead remarks added successfully.")
+            else:
+                logger.info("LeadService: Immediate previous remark is uncompleted (False). Skipping insert.")
+                raise HTTPException(status_code=500, detail="First please mark completed True for immidiate previous remark then you can add new one ok")
         await db.commit()
-        await db.refresh(lead)
-        return lead
-    
+        
+        return {
+            "lead_id": lead_id,
+            "status_history": [status_entry] if status_entry else [],
+            "remarks": [remark_entry] if remark_entry else []
+        }
+
 
     @classmethod
     async def get_lead_history_and_remarks(cls, db: Session, lead_id: str):
@@ -285,7 +356,7 @@ class LeadService:
         statuses = status_result.scalars().all()
         logger.info(f"LeadService: Fetched {len(statuses)} status history entries.")
 
-        remarks_stmt = select(LeadRemarks).where(LeadRemarks.for_lead == lead_id).order_by(LeadRemarks.created_at.desc())
+        remarks_stmt = select(LeadRemarks).where(LeadRemarks.for_lead == lead_id, LeadRemarks.is_deleted == False).order_by(LeadRemarks.created_at.desc())
         remarks_result = await db.execute(remarks_stmt)
         remarks = remarks_result.scalars().all()
         logger.info(f"LeadService: Fetched {len(remarks)} remarks.")
@@ -573,4 +644,41 @@ class LeadService:
 
 
 
+    async def update_the_remarks_data(db, lead_id, remark_id, data):
+        stmt = (select(LeadRemarks).where(LeadRemarks.id == remark_id, LeadRemarks.for_lead == lead_id))
+        result = await db.execute(stmt)
+        remark = result.scalar_one_or_none()
+        if not remark:
+            raise HTTPException(status_code=404, detail="Remark not found with provided remark id")
+        if data.remarks:
+            remark.remarks == data.remarks
+        if data.is_completed:
+            remark.is_completed = True
+        
+        await db.commit()
+        await db.refresh(remark)
+        return remark
     
+
+    async def mark_remarks_data_completed(db, lead_id, remark_id):
+        stmt = (select(LeadRemarks).where(LeadRemarks.lead_id == lead_id, LeadRemarks.id == remark_id))
+        result = await db.execute(stmt)
+        remark = result.scalar_one_or_none()
+        if not remark:
+            raise HTTPException(status_code=404, detail="Remark not found with provided remark id")
+        remark.is_completed = True
+        await db.commit()
+        await db.refresh(remark)
+        return remark
+    
+    async def mark_delete_remark_data(db, lead_id, remark_id):
+        stmt = (select(LeadRemarks).where(LeadRemarks.lead_id == lead_id, LeadRemarks.id == remark_id))
+        result = await db.execute(stmt)
+        remark = result.scalar_one_or_none()
+        if not remark:
+            raise HTTPException(status_code=404, detail="Remark not found with provided remark id")
+        remark.is_deleted = True
+        remark.is_completed = True
+        await db.commit()
+        await db.refresh(remark)
+        return remark

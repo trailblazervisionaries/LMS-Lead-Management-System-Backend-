@@ -129,3 +129,9 @@ class LeadHistoryAndRemarks(BaseModel):
     lead_id: str
     status_history: List[StatusHistoryResponse]
     remarks: List[LeadRemarkResponse]
+
+
+class UpdateRemark(BaseModel):
+    remarks: str
+    is_completed: bool
+    
