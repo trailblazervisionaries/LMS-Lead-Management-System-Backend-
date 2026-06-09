@@ -64,7 +64,7 @@ class AssistantService:
                 entity_id = new_assistant.user_id,
                 log_type = "ADD",
                 prev_data = None,
-                new_data = new_assistant,
+                new_data = new_assistant.to_dict(),
                 added_by = admin_id,
                 admin_id = admin_id
             )

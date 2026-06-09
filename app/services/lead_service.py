@@ -671,6 +671,7 @@ class LeadService:
         await db.refresh(remark)
         return remark
     
+
     async def mark_delete_remark_data(db, lead_id, remark_id):
         stmt = (select(LeadRemarks).where(LeadRemarks.lead_id == lead_id, LeadRemarks.id == remark_id))
         result = await db.execute(stmt)
@@ -682,3 +683,7 @@ class LeadService:
         await db.commit()
         await db.refresh(remark)
         return remark
+    
+
+
+
