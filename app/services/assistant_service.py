@@ -59,7 +59,8 @@ class AssistantService:
             await db.commit()
             logger.info("AssistantService: New user assistant is added successfully")
             await db.refresh(new_assistant, ["address"])
-            AuditLogs.add_audit_log(
+            await AuditLogs.add_audit_log(
+                db =db,
                 entity_name="Add Assistant",
                 entity_id = new_assistant.user_id,
                 log_type = "ADD",
@@ -71,7 +72,7 @@ class AssistantService:
             MonitorAsync.deferred(
                 MailTemplatesService.send_credentials_template,
                 new_assistant.email,
-                new_assistant.fname,
+                new_assistant.name,
                 "assistant",
                 temp_password,
             )
@@ -124,6 +125,17 @@ class AssistantService:
                 
                 for field, value in address_update_data.items():
                     setattr(assistant.address, field, value)
+
+            await AuditLogs.add_audit_log(
+                db = db,
+                entity_name="Update Assistant",
+                entity_id = user_id,
+                log_type = "Update",
+                prev_data = assistant.to_dict(),
+                new_data = data.model_dump(mode="json"),
+                added_by = user_id,
+                admin_id = assistant.admin_id
+            )
 
             await db.commit()
             await db.refresh(assistant, ["address"])
@@ -204,6 +216,16 @@ class AssistantService:
         assistant.is_active = True
         await db.commit()
         await db.refresh(assistant)
+        await AuditLogs.add_audit_log(
+                db = db,
+                entity_name="Activate assistant",
+                entity_id = assistant.user_id,
+                log_type = "Update",
+                prev_data = {"is_active": assistant.is_active},
+                new_data = {"is_active": True},
+                added_by = assistant.user_id,
+                admin_id = assistant.admin_id
+            )
         logger.info("AssistantService: Assistant account activated Successfully.")
         return {
             "message": "Assistant account activated successfully."
@@ -218,6 +240,16 @@ class AssistantService:
         assistant.is_active = False
         await db.commit()
         await db.refresh(assistant)
+        await AuditLogs.add_audit_log(
+                db = db,
+                entity_name="Deactivate Assistant",
+                entity_id = assistant.user_id,
+                log_type = "Update",
+                prev_data = {"is_active": assistant.is_active},
+                new_data = {"is_active": False},
+                added_by = assistant.user_id,
+                admin_id = assistant.admin_id
+            )
         logger.info("AssistantService: Assistant account deactivated Successfully.")
         return {
             "message":"Assistant account deactivated successfully."
@@ -229,3 +261,5 @@ class AssistantService:
         stmt = (select(Users.name, Users.user_id).where(Users.admin_id == admin_id, Users.role == "assistant", Users.is_deleted == False))
         result = await db.execute(stmt)
         return result.all()
+    
+    

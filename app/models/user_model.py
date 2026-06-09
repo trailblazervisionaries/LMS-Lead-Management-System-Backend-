@@ -30,9 +30,27 @@ class Users(Base):
     assignment  = relationship("LeadAssignment", back_populates="assistant")
 
     
-    def to_dict(self):
-        # Automatically converts columns into a standard python dictionary
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+
+
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = ["password"]  # Protect sensitive fields
+            
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
+
 
     @classmethod
     async def get_by_email(cls, db, email):

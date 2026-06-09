@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.core.utils_functions import generate_id
-from sqlalchemy import select, insert, func, or_, delete
+from sqlalchemy import select, insert, func, or_, delete, distinct
 from datetime import datetime
 from dotenv import load_dotenv
 from app.models.lead_form import (
@@ -570,79 +570,200 @@ class LeadService:
 # analytics routes ==========================
 
 
+    # @classmethod
+    # async def get_lead_status_analytics(
+    #     cls, 
+    #     db: Session, 
+    #     admin_id: str = None, 
+    #     assistant_id: str = None
+    # ):
+    #     """
+    #     Returns metrics count for 'Created', 'Assigned', 'Contacted', 'Interested', 'Converted'
+    #     filtered dynamically by admin_id or assistant_id.
+    #     """
+        
+    #     # 1. Create subquery to isolate the LATEST active history status row for each unique lead
+    #     # This prevents counting old historical transitions for the same lead.
+    #     latest_status_subquery = (
+    #         select(
+    #             LeadStatusHistory.lead_id,
+    #             LeadStatusHistory.status
+    #         )
+    #         .distinct(LeadStatusHistory.lead_id)
+    #         .where(LeadStatusHistory.is_deleted == False)
+    #         .order_by(LeadStatusHistory.lead_id, LeadStatusHistory.created_at.desc())
+    #     ).subquery()
+
+    #     # 2. Build the main query joining LeadResponse with our cleaned subquery status profile
+    #     stmt = select(
+    #         # Conditional aggregation counts matching status instances cleanly in 1 database pass
+    #         func.count().filter(latest_status_subquery.c.status == "Created").label("total_created"),
+    #         func.count().filter(latest_status_subquery.c.status == "Assigned").label("total_assigned"),
+    #         func.count().filter(latest_status_subquery.c.status == "Contacted").label("total_contacted"),
+    #         func.count().filter(latest_status_subquery.c.status == "Interested").label("total_interested"),
+    #         func.count().filter(latest_status_subquery.c.status == "Converted").label("total_converted")
+    #     ).select_from(LeadResponse).join(
+    #         latest_status_subquery, 
+    #         LeadResponse.id == latest_status_subquery.c.lead_id
+    #     ).where(
+    #         LeadResponse.is_deleted == False
+    #     )
+
+    #     # 3. Dynamically apply business isolation parameters (Admin scoping vs Assistant assignment mapping)
+    #     if assistant_id:
+    #         # Join assignments table to isolate context down to a specific working assistant identity
+    #         stmt = stmt.join(
+    #             LeadAssignment, 
+    #             LeadAssignment.lead_id == LeadResponse.id
+    #         ).where(
+    #             LeadAssignment.assistant_id == assistant_id,
+    #             LeadAssignment.is_deleted == False
+    #         )
+    #     elif admin_id:
+    #         # Fallback to general administrative tenant perimeter checks
+    #         stmt = stmt.where(LeadResponse.admin_id == admin_id)
+    #     else:
+    #         # Prevent open table scanning if parameters are accidentally omitted
+    #         return {
+    #             "total_created": 0, "total_assigned": 0, "total_contacted": 0,
+    #             "total_interested": 0, "total_converted": 0
+    #         }
+
+    #     # 4. Execute single optimized database roundtrip fetch
+    #     result = await db.execute(stmt)
+    #     row = result.fetchone()
+
+    #     # Return results as a clean dictionary map matching your requirements
+    #     return {
+    #         "total_created": row.total_created or 0,
+    #         "total_assigned": row.total_assigned or 0,
+    #         "total_contacted": row.total_contacted or 0,
+    #         "total_interested": row.total_interested or 0,
+    #         "total_converted": row.total_converted or 0
+    #     }
+
+
     @classmethod
     async def get_lead_status_analytics(
-        cls, 
-        db: Session, 
-        admin_id: str = None, 
+        cls,
+        db,
+        admin_id: str = None,
         assistant_id: str = None
     ):
         """
-        Returns metrics count for 'Created', 'Assigned', 'Contacted', 'Interested', 'Converted'
-        filtered dynamically by admin_id or assistant_id.
-        """
-        
-        # 1. Create subquery to isolate the LATEST active history status row for each unique lead
-        # This prevents counting old historical transitions for the same lead.
-        latest_status_subquery = (
-            select(
-                LeadStatusHistory.lead_id,
-                LeadStatusHistory.status
-            )
-            .distinct(LeadStatusHistory.lead_id)
-            .where(LeadStatusHistory.is_deleted == False)
-            .order_by(LeadStatusHistory.lead_id, LeadStatusHistory.created_at.desc())
-        ).subquery()
+        Admin:
+            Shows analytics for all leads created by admin.
 
-        # 2. Build the main query joining LeadResponse with our cleaned subquery status profile
-        stmt = select(
-            # Conditional aggregation counts matching status instances cleanly in 1 database pass
-            func.count().filter(latest_status_subquery.c.status == "Created").label("total_created"),
-            func.count().filter(latest_status_subquery.c.status == "Assigned").label("total_assigned"),
-            func.count().filter(latest_status_subquery.c.status == "Contacted").label("total_contacted"),
-            func.count().filter(latest_status_subquery.c.status == "Interested").label("total_interested"),
-            func.count().filter(latest_status_subquery.c.status == "Converted").label("total_converted")
-        ).select_from(LeadResponse).join(
-            latest_status_subquery, 
-            LeadResponse.id == latest_status_subquery.c.lead_id
-        ).where(
+        Assistant:
+            Shows analytics only for leads assigned to assistant.
+        """
+
+        if not admin_id and not assistant_id:
+            return {
+                "total_created": 0,
+                "total_assigned": 0,
+                "total_contacted": 0,
+                "total_interested": 0,
+                "total_converted": 0,
+            }
+
+        # Base query
+        lead_query = select(LeadResponse.id).where(
             LeadResponse.is_deleted == False
         )
 
-        # 3. Dynamically apply business isolation parameters (Admin scoping vs Assistant assignment mapping)
+        # Admin filter
+        if admin_id:
+            lead_query = lead_query.where(
+                LeadResponse.admin_id == admin_id
+            )
+
+        # Assistant filter
         if assistant_id:
-            # Join assignments table to isolate context down to a specific working assistant identity
-            stmt = stmt.join(
-                LeadAssignment, 
-                LeadAssignment.lead_id == LeadResponse.id
-            ).where(
-                LeadAssignment.assistant_id == assistant_id,
+            lead_query = (
+                lead_query
+                .join(
+                    LeadAssignment,
+                    LeadAssignment.lead_id == LeadResponse.id
+                )
+                .where(
+                    LeadAssignment.assistant_id == assistant_id,
+                    LeadAssignment.is_deleted == False
+                )
+            )
+
+        lead_subquery = lead_query.subquery()
+
+        # Total leads
+        total_created_stmt = (
+            select(func.count(distinct(lead_subquery.c.id)))
+        )
+
+        # Assigned leads
+        total_assigned_stmt = (
+            select(func.count(distinct(LeadAssignment.lead_id)))
+            .join(
+                lead_subquery,
+                lead_subquery.c.id == LeadAssignment.lead_id
+            )
+            .where(
                 LeadAssignment.is_deleted == False
             )
-        elif admin_id:
-            # Fallback to general administrative tenant perimeter checks
-            stmt = stmt.where(LeadResponse.admin_id == admin_id)
-        else:
-            # Prevent open table scanning if parameters are accidentally omitted
-            return {
-                "total_created": 0, "total_assigned": 0, "total_contacted": 0,
-                "total_interested": 0, "total_converted": 0
-            }
+        )
 
-        # 4. Execute single optimized database roundtrip fetch
-        result = await db.execute(stmt)
-        row = result.fetchone()
+        # Contacted leads
+        total_contacted_stmt = (
+            select(func.count(distinct(LeadStatusHistory.lead_id)))
+            .join(
+                lead_subquery,
+                lead_subquery.c.id == LeadStatusHistory.lead_id
+            )
+            .where(
+                LeadStatusHistory.status == "Contacted",
+                LeadStatusHistory.is_deleted == False
+            )
+        )
 
-        # Return results as a clean dictionary map matching your requirements
+        # Interested leads
+        total_interested_stmt = (
+            select(func.count(distinct(LeadStatusHistory.lead_id)))
+            .join(
+                lead_subquery,
+                lead_subquery.c.id == LeadStatusHistory.lead_id
+            )
+            .where(
+                LeadStatusHistory.status == "Interested",
+                LeadStatusHistory.is_deleted == False
+            )
+        )
+
+        # Converted leads
+        total_converted_stmt = (
+            select(func.count(distinct(LeadStatusHistory.lead_id)))
+            .join(
+                lead_subquery,
+                lead_subquery.c.id == LeadStatusHistory.lead_id
+            )
+            .where(
+                LeadStatusHistory.status == "Converted",
+                LeadStatusHistory.is_deleted == False
+            )
+        )
+
+        total_created = (await db.execute(total_created_stmt)).scalar() or 0
+        total_assigned = (await db.execute(total_assigned_stmt)).scalar() or 0
+        total_contacted = (await db.execute(total_contacted_stmt)).scalar() or 0
+        total_interested = (await db.execute(total_interested_stmt)).scalar() or 0
+        total_converted = (await db.execute(total_converted_stmt)).scalar() or 0
+
         return {
-            "total_created": row.total_created or 0,
-            "total_assigned": row.total_assigned or 0,
-            "total_contacted": row.total_contacted or 0,
-            "total_interested": row.total_interested or 0,
-            "total_converted": row.total_converted or 0
+            "total_created": total_created,
+            "total_assigned": total_assigned,
+            "total_contacted": total_contacted,
+            "total_interested": total_interested,
+            "total_converted": total_converted,
         }
-
-
+    
 
     async def update_the_remarks_data(db, lead_id, remark_id, data):
         stmt = (select(LeadRemarks).where(LeadRemarks.id == remark_id, LeadRemarks.for_lead == lead_id))
@@ -652,7 +773,8 @@ class LeadService:
             raise HTTPException(status_code=404, detail="Remark not found with provided remark id")
         if data.remarks:
             remark.remarks = data.remarks
-        if data.is_completed:
+
+        if data.is_completed is not None:
             remark.is_completed = data.is_completed
         
         await db.commit()
