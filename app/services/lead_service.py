@@ -783,7 +783,7 @@ class LeadService:
     
 
     async def mark_remarks_data_completed(db, lead_id, remark_id):
-        stmt = (select(LeadRemarks).where(LeadRemarks.lead_id == lead_id, LeadRemarks.id == remark_id))
+        stmt = (select(LeadRemarks).where(LeadRemarks.for_lead == lead_id, LeadRemarks.id == remark_id))
         result = await db.execute(stmt)
         remark = result.scalar_one_or_none()
         if not remark:
