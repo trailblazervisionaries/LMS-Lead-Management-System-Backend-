@@ -25,6 +25,9 @@ class Address(Base):
     
 
 
+    def to_dict(self):
+        # Automatically converts columns into a standard python dictionary
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
 
 
     

@@ -15,6 +15,11 @@ class FormTemplate(Base):
 
     admin = relationship("Users", back_populates="form")
 
+    
+    def to_dict(self):
+        # Automatically converts columns into a standard python dictionary
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+
     @classmethod
     async def get_form_by_id(cls, db, form_id):
         stmt = select(FormTemplate).where(FormTemplate.id == form_id)
@@ -64,6 +69,9 @@ class LeadResponse(Base):
     )
 
 
+    def to_dict(self):
+        # Automatically converts columns into a standard python dictionary
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
 
     @classmethod
     async def get_lead(cls, db, admin_id, email=None, phone=None):

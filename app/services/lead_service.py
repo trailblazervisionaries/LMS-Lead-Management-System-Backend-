@@ -651,7 +651,7 @@ class LeadService:
         if not remark:
             raise HTTPException(status_code=404, detail="Remark not found with provided remark id")
         if data.remarks:
-            remark.remarks == data.remarks
+            remark.remarks = data.remarks
         if data.is_completed:
             remark.is_completed = True
         
