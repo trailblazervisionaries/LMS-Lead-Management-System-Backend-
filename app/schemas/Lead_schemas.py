@@ -134,4 +134,6 @@ class LeadHistoryAndRemarks(BaseModel):
 class UpdateRemark(BaseModel):
     remarks: str
     is_completed: bool
-    
+
+
+

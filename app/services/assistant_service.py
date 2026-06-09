@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from app.models.user_model import Users
 from app.core.hash import hash_password, verify_password
 from app.models.address_model import Address
+from app.models.audit_model import AuditLogs
 from app.templates.send_template_mail import MailTemplatesService
 from app.backgroundTasks.MonitorAsync import MonitorAsync
 from app.schemas.User_schemas import UserCreate, UserUpdate
@@ -58,6 +59,15 @@ class AssistantService:
             await db.commit()
             logger.info("AssistantService: New user assistant is added successfully")
             await db.refresh(new_assistant, ["address"])
+            AuditLogs.add_audit_log(
+                entity_name="Add Assistant",
+                entity_id = new_assistant.user_id,
+                log_type = "ADD",
+                prev_data = None,
+                new_data = new_assistant,
+                added_by = admin_id,
+                admin_id = admin_id
+            )
             MonitorAsync.deferred(
                 MailTemplatesService.send_credentials_template,
                 new_assistant.email,
