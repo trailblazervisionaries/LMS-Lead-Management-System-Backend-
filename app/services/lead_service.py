@@ -653,7 +653,7 @@ class LeadService:
         if data.remarks:
             remark.remarks = data.remarks
         if data.is_completed:
-            remark.is_completed = True
+            remark.is_completed = data.is_completed
         
         await db.commit()
         await db.refresh(remark)

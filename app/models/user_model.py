@@ -29,6 +29,10 @@ class Users(Base):
     form = relationship("FormTemplate", back_populates="admin")
     assignment  = relationship("LeadAssignment", back_populates="assistant")
 
+    
+    def to_dict(self):
+        # Automatically converts columns into a standard python dictionary
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
 
     @classmethod
     async def get_by_email(cls, db, email):

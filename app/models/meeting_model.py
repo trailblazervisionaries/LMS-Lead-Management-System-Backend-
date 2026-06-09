@@ -22,6 +22,10 @@ class MeetingData(Base):
     added_by = Column(String, nullable = False)
 
 
+    def to_dict(self):
+        # Automatically converts columns into a standard python dictionary
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+    
     @staticmethod
     async def get_by_lead_id(db, lead_id):
         stmt = (

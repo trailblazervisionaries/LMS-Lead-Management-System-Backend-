@@ -301,6 +301,10 @@ class LeadRemarks(Base):
     
     lead = relationship("LeadResponse", back_populates="remarks")
 
+    
+    def to_dict(self):
+        # Automatically converts columns into a standard python dictionary
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
 
     @classmethod
     async def get_remarks(cls, db, lead_id):
@@ -376,6 +380,10 @@ class LeadStatusHistory(Base):
         result = await db.execute(stmt)
         return result.scalars().all()
     
+    
+    def to_dict(self):
+        # Automatically converts columns into a standard python dictionary
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
 
 
 
@@ -395,6 +403,10 @@ class LeadAssignment(Base):
     lead = relationship("LeadResponse", back_populates="assignments")
     assistant = relationship("Users") 
 
+    
+    def to_dict(self):
+        # Automatically converts columns into a standard python dictionary
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
 
     @classmethod
     async def get_assistant_by_lead_id(cls, db, lead_id):
