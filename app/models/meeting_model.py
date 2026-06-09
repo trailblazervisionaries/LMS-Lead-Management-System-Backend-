@@ -22,10 +22,7 @@ class MeetingData(Base):
     added_by = Column(String, nullable = False)
 
 
-    def to_dict(self):
-        # Automatically converts columns into a standard python dictionary
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
-    
+
     @staticmethod
     async def get_by_lead_id(db, lead_id):
         stmt = (
@@ -85,3 +82,21 @@ class MeetingData(Base):
         return meet
 
 
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = ["password"]  # Protect sensitive fields
+            
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result

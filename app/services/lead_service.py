@@ -401,8 +401,8 @@ class LeadService:
 
 
     @classmethod
-    async def get_todays_followups(cls, db: Session, date: str, assistant_id: str = None, admin_id: str = None):
-        return await LeadRemarks.get_today_follow_ups(db, date, admin_id, assistant_id)
+    async def get_todays_followups(cls, db: Session, start_date: str, end_date: str, assistant_id: str = None, admin_id: str = None):
+        return await LeadRemarks.get_today_follow_ups(db, start_date, end_date, admin_id, assistant_id)
 
 
     @classmethod
@@ -795,7 +795,7 @@ class LeadService:
     
 
     async def mark_delete_remark_data(db, lead_id, remark_id):
-        stmt = (select(LeadRemarks).where(LeadRemarks.lead_id == lead_id, LeadRemarks.id == remark_id))
+        stmt = (select(LeadRemarks).where(LeadRemarks.for_lead == lead_id, LeadRemarks.id == remark_id))
         result = await db.execute(stmt)
         remark = result.scalar_one_or_none()
         if not remark:

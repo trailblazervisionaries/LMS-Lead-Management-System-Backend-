@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.core.utils_functions import generate_id
 from app.models.lead_form import FormTemplate
+from app.models.audit_model import AuditLogs
 import logging
 import os
 from dotenv import load_dotenv
@@ -25,6 +26,16 @@ class FormService:
             schema_definition=data.schema_definition,
         )
         db.add(new_template)
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name="Add Form",
+            entity_id = new_template.id,
+            log_type = "Add",
+            prev_data = None,
+            new_data = new_template.to_dict,
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         await db.commit()
         await db.refresh(new_template)
         logger.info("FormService: lead form created successfully.")

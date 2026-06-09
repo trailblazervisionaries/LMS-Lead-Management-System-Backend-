@@ -16,9 +16,24 @@ class FormTemplate(Base):
     admin = relationship("Users", back_populates="form")
 
     
-    def to_dict(self):
-        # Automatically converts columns into a standard python dictionary
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = ["password"]  # Protect sensitive fields
+            
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
 
     @classmethod
     async def get_form_by_id(cls, db, form_id):
@@ -69,9 +84,24 @@ class LeadResponse(Base):
     )
 
 
-    def to_dict(self):
-        # Automatically converts columns into a standard python dictionary
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = ["password"]  # Protect sensitive fields
+            
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
 
     @classmethod
     async def get_lead(cls, db, admin_id, email=None, phone=None):
@@ -302,9 +332,24 @@ class LeadRemarks(Base):
     lead = relationship("LeadResponse", back_populates="remarks")
 
     
-    def to_dict(self):
-        # Automatically converts columns into a standard python dictionary
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = ["password"]  # Protect sensitive fields
+            
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
 
     @classmethod
     async def get_remarks(cls, db, lead_id):
@@ -321,14 +366,17 @@ class LeadRemarks(Base):
     
     
     @classmethod
-    async def get_today_follow_ups(cls, db, start_date, admin_id: str = None, assistant_id: str = None):
+    async def get_today_follow_ups(cls, db, start_date, end_date, admin_id: str = None, assistant_id: str = None):
         try:
-            parsed_date = datetime.strptime(start_date, "%d%m%Y").date()
+            start_parsed_date = datetime.strptime(start_date, "%d%m%Y").date()
+            end_parsed_date = datetime.strptime(end_date, "%d%m%Y").date()
         except ValueError:
             raise ValueError("Invalid date format. Expected 'ddmmyyyy' string (e.g., 20052026).")
 
-        from_date = datetime.combine(parsed_date, time.min)
-        today_end = datetime.combine(datetime.utcnow().date(), time.max)
+        from_date = datetime.combine(start_parsed_date, time.min)
+        # today_end = datetime.combine(datetime.utcnow().date(), time.max)
+        end_date = datetime.combine(end_parsed_date, time.max)
+
 
         query = (
             select(LeadRemarks)
@@ -339,7 +387,7 @@ class LeadRemarks(Base):
         # Basic filters: Today's date, not completed, not deleted
         filters = [
             LeadRemarks.next_follow_up_date >= from_date,
-            LeadRemarks.next_follow_up_date <= today_end,
+            LeadRemarks.next_follow_up_date <= end_date,
             LeadRemarks.is_completed == False,
             LeadRemarks.is_deleted == False
         ]
@@ -381,9 +429,24 @@ class LeadStatusHistory(Base):
         return result.scalars().all()
     
     
-    def to_dict(self):
-        # Automatically converts columns into a standard python dictionary
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = ["password"]  # Protect sensitive fields
+            
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
 
 
 
@@ -404,9 +467,24 @@ class LeadAssignment(Base):
     assistant = relationship("Users") 
 
     
-    def to_dict(self):
-        # Automatically converts columns into a standard python dictionary
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = ["password"]  # Protect sensitive fields
+            
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
 
     @classmethod
     async def get_assistant_by_lead_id(cls, db, lead_id):

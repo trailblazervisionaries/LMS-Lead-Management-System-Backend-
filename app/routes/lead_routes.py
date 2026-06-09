@@ -55,6 +55,7 @@ async def list_admin_leads(
     result = await LeadService.get_leads_for_admin(db, request.state.user.user_id, page, size)
     return result
 
+
 #  for the automatic assignment of lead to the assistant ========
 @router.post("/admin/assign-unassigned", response_model=LeadAssignResponse)
 async def assign_unassigned_leads(request: Request, db: Session = Depends(get_db)):
@@ -73,9 +74,6 @@ async def assign_unassigned_leads_(request: Request, data: NewAssignment, db: Se
         raise HTTPException(status_code=403, detail="Only admins can assign leads")
     result = await LeadService.assign_unassigned_leads_to_specific_user(db, request.state.user.user_id, data)
     return result
-
-
-
 
 
 
