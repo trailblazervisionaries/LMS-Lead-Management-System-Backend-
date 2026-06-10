@@ -121,11 +121,13 @@ class LeadService:
         stmt = select(LeadResponse).where(LeadResponse.id == lead_id, LeadResponse.is_deleted == False)
         result = await db.execute(stmt)
         lead = result.scalar_one_or_none()
+        if not lead:
+            raise HTTPException("LeadService: Lead data not found for the provided lead_id.")
         if data.submitted_data is not None:
             lead.submitted_data = data.submitted_data
         await db.commit()
         await db.refresh(lead)
-        logger.info("LeadService: Lead data updated sucessfully as per request of lead owner")
+        logger.info("LeadService: Lead data updated sucessfully as per request of lead owner.")
         await AuditLogs.add_audit_log(
             db = db,
             entity_name = "Update Lead",
@@ -467,8 +469,25 @@ class LeadService:
 
 
     @classmethod
-    async def get_todays_followups(cls, db: Session, start_date: str, end_date: str, assistant_id: str = None, admin_id: str = None):
-        return await LeadRemarks.get_today_follow_ups(db, start_date, end_date, admin_id, assistant_id)
+    async def get_todays_followups(
+        cls,
+        db: Session,
+        start_date: str,
+        end_date: str,
+        assistant_id: str = None,
+        admin_id: str = None,
+        page: int = 1,
+        size: int = 20,
+    ):
+        return await LeadRemarks.get_today_follow_ups(
+            db,
+            start_date,
+            end_date,
+            admin_id=admin_id,
+            assistant_id=assistant_id,
+            page=page,
+            size=size,
+        )
 
 
     @classmethod

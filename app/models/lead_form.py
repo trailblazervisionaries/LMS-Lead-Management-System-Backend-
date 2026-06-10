@@ -366,7 +366,16 @@ class LeadRemarks(Base):
     
     
     @classmethod
-    async def get_today_follow_ups(cls, db, start_date, end_date, admin_id: str = None, assistant_id: str = None):
+    async def get_today_follow_ups(
+        cls,
+        db,
+        start_date,
+        end_date,
+        admin_id: str = None,
+        assistant_id: str = None,
+        page: int = 1,
+        size: int = 20,
+    ):
         try:
             start_parsed_date = datetime.strptime(start_date, "%d%m%Y").date()
             end_parsed_date = datetime.strptime(end_date, "%d%m%Y").date()
@@ -374,9 +383,9 @@ class LeadRemarks(Base):
             raise ValueError("Invalid date format. Expected 'ddmmyyyy' string (e.g., 20052026).")
 
         from_date = datetime.combine(start_parsed_date, time.min)
-        # today_end = datetime.combine(datetime.utcnow().date(), time.max)
-        end_date = datetime.combine(end_parsed_date, time.max)
+        end_date_time = datetime.combine(end_parsed_date, time.max)
 
+        offset = (page - 1) * size
 
         query = (
             select(LeadRemarks)
@@ -384,26 +393,38 @@ class LeadRemarks(Base):
             .options(joinedload(LeadRemarks.lead))
         )
 
-        # Basic filters: Today's date, not completed, not deleted
         filters = [
             LeadRemarks.next_follow_up_date >= from_date,
-            LeadRemarks.next_follow_up_date <= end_date,
+            LeadRemarks.next_follow_up_date <= end_date_time,
             LeadRemarks.is_completed == False,
-            LeadRemarks.is_deleted == False
+            LeadRemarks.is_deleted == False,
         ]
-
-        if admin_id:
-            filters.append(LeadResponse.admin_id == admin_id)
 
         if assistant_id:
             query = query.join(LeadAssignment, LeadResponse.id == LeadAssignment.lead_id)
             filters.append(LeadAssignment.assistant_id == assistant_id)
             filters.append(LeadAssignment.is_deleted == False)
 
-        query = query.where(and_(*filters)).order_by(LeadRemarks.next_follow_up_date.asc())
+        if admin_id:
+            filters.append(LeadResponse.admin_id == admin_id)
+
+        count_stmt = (
+            select(func.count(LeadRemarks.id))
+            .select_from(LeadRemarks)
+            .join(LeadResponse, LeadRemarks.for_lead == LeadResponse.id)
+            .where(and_(*filters))
+        )
+        total_count = (await db.execute(count_stmt)).scalar() or 0
+
+        query = query.where(and_(*filters)).order_by(LeadRemarks.next_follow_up_date.asc()).offset(offset).limit(size)
 
         result = await db.execute(query)
-        return result.scalars().unique().all()
+        items = result.scalars().unique().all()
+
+        return {
+            "items": items,
+            "total_count": total_count,
+        }
     
 
 class LeadStatusHistory(Base):

@@ -6,7 +6,8 @@ from app.schemas.Lead_schemas import (
     LeadStatusUpdate,
     LeadHistoryAndRemarks,
     UpdateRemark,
-    LeadRemarkResponse
+    LeadRemarkResponse,
+    FollowupPaginationResponse,
 )
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 import logging
@@ -16,16 +17,42 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/assistant/followups/{start_date}/{end_date}", response_model=list[dict])
-async def get_assistant_followups(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
+@router.get("/assistant/followups/{start_date}/{end_date}", response_model=FollowupPaginationResponse)
+async def get_assistant_followups(
+    request: Request,
+    start_date: str,
+    end_date: str,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
     role = request.state.user.role
     if role not in {"assistant", "admin"}:
-        raise HTTPException(status_code=403, detail="Only assistants can read followups")
-    followups = await LeadService.get_todays_followups(db, start_date, end_date, assistant_id=request.state.user.user_id)
-    return [
+        raise HTTPException(status_code=403, detail="Only assistants or admins can read followups")
+
+    followup_data = await LeadService.get_todays_followups(
+        db,
+        start_date,
+        end_date,
+        assistant_id=request.state.user.user_id if role == "assistant" else None,
+        admin_id=request.state.user.user_id if role == "admin" else None,
+        page=page,
+        size=size,
+    )
+
+    items = [
         {column.name: getattr(item, column.name) for column in item.__table__.columns}
-        for item in followups
+        for item in followup_data["items"]
     ]
+
+    next_page = page + 1 if page * size < followup_data["total_count"] else None
+
+    return {
+        "items": items,
+        "total_followups": followup_data["total_count"],
+        "current_page": page,
+        "next_page": next_page,
+    }
 
 
 @router.post("/assistant/leads/{lead_id}/add", response_model=LeadHistoryAndRemarks)

@@ -14,7 +14,7 @@ async def create_new_meeting(request: Request, data: MeetingCreateRequest, db: S
     role = request.state.user.role
     if role != "assistant":
         raise HTTPException(403, "Sorry :( , You are not authorised to create the meeting.")
-    return MeetingService.create_zoom_meeting(db, assistant_id, data)
+    return MeetingService.create_zoom_meeting(db, assistant_id, data, request.state.user.admin_id)
 
 
 @router.patch("/update-meeting/{meeting_id}", response_model = MeetingCreateResponse)
@@ -23,7 +23,7 @@ async def update_meeting(request: Request, meeting_id: str, data: MeetingUpdateR
     role = request.state.user.role
     if role != "assistant":
         raise HTTPException(403, "Sorry :( , You are not authorised to update the meeting.")
-    return MeetingService.update_zoom_meeting(db, assistant_id, meeting_id, data)
+    return MeetingService.update_zoom_meeting(db, assistant_id, meeting_id, data, request.state.user.admin_id)
 
 
 @router.delete("/delete-meeting/{meeting_id}")
@@ -31,7 +31,7 @@ async def delete_meetings(request: Request, meeting_id: str, data: MeetingDelete
     role = request.state.user.role
     if role != "assistant":
         raise HTTPException(403, "Sorry :( , You are not authorised to delete the meeting.")
-    return MeetingService.cancel_zoom_meeting(db, meeting_id, data.recipient_email, data.topic)
+    return MeetingService.cancel_zoom_meeting(db, meeting_id, data.recipient_email, data.topic, request.state.user.admin_id)
 
 
 @router.get("/get-meeting/{lead_id}", response_model = MeetingResponse)

@@ -8,6 +8,7 @@ from app.models.meeting_model import MeetingData
 from app.schemas.meeting_schemas import MeetingCreateResponse, MeetingCreateRequest, MeetingUpdateRequest
 from app.templates.send_template_mail import MailTemplatesService
 from app.backgroundTasks.MonitorAsync import MonitorAsync
+from app.models.audit_model import AuditLogs
 load_dotenv()
 import logging 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class MeetingService:
 
 
     @staticmethod
-    async def create_zoom_meeting(db, assistant_id: str, payload: MeetingCreateRequest):
+    async def create_zoom_meeting(db, assistant_id: str, payload: MeetingCreateRequest, admin_id):
         """
         Creates a scheduled Zoom meeting link using the Zoom Granular Scopes API.
         """
@@ -89,6 +90,16 @@ class MeetingService:
                 data = response.json()
 
                 saved_data = await MeetingData.save_meeting_detials(db, assistant_id, payload.lead_id, data)
+                await AuditLogs.add_audit_log(
+                    db = db,
+                    entity_name = "Meeting",
+                    entity_id = saved_data.id,
+                    log_type = "Add",
+                    prev_data = None,
+                    new_data =  saved_data.to_dict(),
+                    added_by = assistant_id,
+                    admin_id = admin_id
+                )
                 if not saved_data:
                     raise HTTPException(500, "There might be some issues in saving the meeting data in db.")
                 logger.info("MeetingService: new meeting data is saved successfully into the database.")
@@ -122,7 +133,7 @@ class MeetingService:
                 )
             
     @staticmethod
-    async def update_zoom_meeting(db, assistant_id: str, meeting_id: int, payload: MeetingUpdateRequest):
+    async def update_zoom_meeting(db, assistant_id: str, meeting_id: int, payload: MeetingUpdateRequest, admin_id):
             """
             Updates details of an existing Zoom meeting and triggers an update email.
             """
@@ -185,7 +196,7 @@ class MeetingService:
 
                 
     @staticmethod
-    async def cancel_zoom_meeting(db, meeting_id: int, recipient_email: str, topic: str):
+    async def cancel_zoom_meeting(db, meeting_id: int, recipient_email: str, topic: str, admin_id):
             """
             Deletes an existing Zoom meeting using its unique ID.
             """

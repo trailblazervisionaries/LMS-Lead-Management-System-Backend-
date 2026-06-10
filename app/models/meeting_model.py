@@ -21,6 +21,24 @@ class MeetingData(Base):
     created_at = Column(DateTime, default = datetime.utcnow)
     added_by = Column(String, nullable = False)
 
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = ["password"]  # Protect sensitive fields
+            
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
 
 
     @staticmethod

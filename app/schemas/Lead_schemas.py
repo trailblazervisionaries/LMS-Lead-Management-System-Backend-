@@ -128,6 +128,16 @@ class LeadRemarkResponse(BaseModel):
         from_attributes = True
 
 
+class FollowupPaginationResponse(BaseModel):
+    items: List[LeadRemarkResponse]
+    total_followups: int
+    current_page: int
+    next_page: Optional[int]
+
+    class Config:
+        from_attributes = True
+
+
 class LeadHistoryAndRemarks(BaseModel):
     lead_id: str
     status_history: List[StatusHistoryResponse]
