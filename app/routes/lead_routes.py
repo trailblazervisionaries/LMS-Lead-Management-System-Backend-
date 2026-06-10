@@ -5,6 +5,7 @@ from app.schemas.Lead_schemas import (
     LeadCreate,
     LeadResponseModel,
     LeadStatusUpdate,
+    UpdateLead,
     LeadPaginationResponse,
     LeadAssignResponse,
     NewAssignment
@@ -35,6 +36,15 @@ async def upload_excel_leads(
         admin_id=admin_id, 
         file=file
     )
+
+
+@router.put("update/lead-response/{lead_id}", response_model=LeadResponseModel)
+async def update_lead_response(request: Request, data: UpdateLead, lead_id: str, db: Session = Depends(get_db)):
+    role = request.state.user.role
+    if role not in {"assistant", "admin"}:
+        raise HTTPException(403, "You don not have any such authority to make changes.")
+    result = LeadService.update_lead_response_data(db, lead_id, request.state.user.user_id, data)
+    return LeadResponseModel.model_validate(result)
 
 @router.get("/fetch/{lead_id}", response_model = LeadResponseModel)
 async def fetch_lead_by_lead_id(request: Request, lead_id: str, db: Session = Depends(get_db)):
@@ -107,7 +117,7 @@ async def delete_lead_data(lead_id: str, request: Request, db: Session = Depends
     role = request.state.user.role
     if role not in {"assistant", "admin"}:
         raise HTTPException(status_code=403, detail="Only admin or Assistant can delete the lead")
-    result = await LeadService.delete_lead_permanentaly(db, lead_id)
+    result = await LeadService.delete_lead_permanentaly(db, lead_id, request.state.user.user_id)
     return result
 
 
@@ -133,7 +143,6 @@ async def get_dashboard_counters(request: Request, db: Session = Depends(get_db)
         stats = await LeadService.get_lead_status_analytics(db, assistant_id=user_id)
     else:
         raise HTTPException(status_code=403, detail="Unauthorized role access profile")
-
     return stats
 
 

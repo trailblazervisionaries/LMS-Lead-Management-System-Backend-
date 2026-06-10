@@ -26,6 +26,9 @@ class LeadCreate(BaseModel):
     class Config:
         from_attributes = True
 
+class UpdateLead(BaseModel):
+        submitted_data: dict[str, Any]
+
 
 class LeadResponseModel(BaseModel):
     id: str

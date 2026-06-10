@@ -32,7 +32,7 @@ class FormService:
             entity_id = new_template.id,
             log_type = "Add",
             prev_data = None,
-            new_data = new_template.to_dict,
+            new_data = new_template.to_dict(),
             added_by = admin_id,
             admin_id = admin_id
         )
@@ -59,7 +59,16 @@ class FormService:
             existing_template.schema_definition = data.schema_definition
         if data.is_active is not None:
             existing_template.is_active = data.is_active
-
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Update Form",
+            entity_id = template_id,
+            log_type = "Update",
+            prev_data = existing_template.to_dict(),
+            new_data =  data.schema_definition,
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         await db.commit()
         await db.refresh(existing_template)
         logger.info("FormService: Lead form template updated successfully.")
@@ -75,6 +84,16 @@ class FormService:
         if form_avl:
             raise HTTPException(400, "Other Template Form already active without deactivating other you can't activate this one.")
         template.is_active = True
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Activate Form",
+            entity_id = template_id,
+            log_type = "Update",
+            prev_data = template.to_dict(),
+            new_data =  {"is_active" : True},
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         await db.commit()
         await db.refresh(template)
         logger.info("FormService: from marked activated successfully")
@@ -89,6 +108,16 @@ class FormService:
         template.is_active = False
         await db.commit()
         await db.refresh(template)
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Deactivate Form",
+            entity_id = template_id,
+            log_type = "Update",
+            prev_data = template.to_dict(),
+            new_data =  {"is_active" : False},
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         logger.info("FormService: from marked seactiveted")
         return template
     
@@ -100,6 +129,16 @@ class FormService:
             raise HTTPException(status_code=404, detail="Form template not found")
         await db.delete(template)
         await db.commit()
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Delete Form",
+            entity_id = template_id,
+            log_type = "Delete",
+            prev_data = template.to_dict(),
+            new_data =  None,
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         return {"detail": f"Form template {template_id} deleted successfully"}
     
     
@@ -110,6 +149,16 @@ class FormService:
             raise HTTPException(status_code=404, detail="Form template not found")
         await db.delete(template)
         await db.commit()
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Delete Form",
+            entity_id = template_id,
+            log_type = "Delete",
+            prev_data = template.to_dict(),
+            new_data =  {"is_deleted" : True},
+            added_by = template.admin_id,
+            admin_id = template.admin_id
+        )
         return {"detail": f"Form template {template_id} deleted successfully"}
 
 

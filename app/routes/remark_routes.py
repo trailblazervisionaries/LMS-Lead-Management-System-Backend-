@@ -19,7 +19,7 @@ router = APIRouter()
 @router.get("/assistant/followups/{start_date}/{end_date}", response_model=list[dict])
 async def get_assistant_followups(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
     role = request.state.user.role
-    if role != "assistant":
+    if role not in {"assistant", "admin"}:
         raise HTTPException(status_code=403, detail="Only assistants can read followups")
     followups = await LeadService.get_todays_followups(db, start_date, end_date, assistant_id=request.state.user.user_id)
     return [

@@ -12,6 +12,7 @@ from app.models.lead_form import (
     LeadStatusHistory,
     LeadAssignment,
 )
+from app.models.audit_model import AuditLogs
 import pandas as pd
 import io
 from app.models.user_model import Users
@@ -114,6 +115,29 @@ class LeadService:
         stmt = (select(LeadResponse).where(LeadResponse.id == lead_id))
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
+    
+    @classmethod
+    async def update_lead_response_data(cls, db, lead_id, user_id, data):
+        stmt = select(LeadResponse).where(LeadResponse.id == lead_id, LeadResponse.is_deleted == False)
+        result = await db.execute(stmt)
+        lead = result.scalar_one_or_none()
+        if data.submitted_data is not None:
+            lead.submitted_data = data.submitted_data
+        await db.commit()
+        await db.refresh(lead)
+        logger.info("LeadService: Lead data updated sucessfully as per request of lead owner")
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Update Lead",
+            entity_id = lead_id,
+            log_type = "Update",
+            prev_data = lead.to_dict(),
+            new_data =  data.submitted_data,
+            added_by = user_id,
+            admin_id = lead.admin_id
+        )
+        return lead
+
 
     @classmethod
     async def assign_unassigned_leads(cls, db: Session, admin_id: str):
@@ -175,7 +199,9 @@ class LeadService:
             logger.info("lead_id", data.lead_id)
             lead_assign = await LeadAssignment.get_by_lead_id(db, data.lead_id)
             logger.info("lead_assign data ", lead_assign.lead_id)
+            previ_data=None
             if lead_assign:
+                previ_data = lead_assign.to_dict()
                 lead_assign.is_deleted = True
 
             new_assignment = LeadAssignment(
@@ -192,6 +218,16 @@ class LeadService:
             )
             db.add(status)
             await db.commit()
+            await AuditLogs.add_audit_log(
+                db = db,
+                entity_name = "Add Assign",
+                entity_id = new_assignment.id,
+                log_type = "Add",
+                prev_data = previ_data,
+                new_data =  new_assignment.to_dict(),
+                added_by = admin_id,
+                admin_id = admin_id
+            )
             return {
                 "id": new_assignment.id,
                 "lead_id": new_assignment.lead_id,
@@ -223,6 +259,16 @@ class LeadService:
         db.add(status)
         await db.commit()
         await db.refresh()
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Add Assign",
+            entity_id = new_assignment.id,
+            log_type = "Add",
+            prev_data = None,
+            new_data =  new_assignment.to_dict(),
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         logger.info("LeadService: Lead is assignd to a specific assistant.")
         return new_assignment
     
@@ -369,7 +415,7 @@ class LeadService:
 
 
     @classmethod
-    async def delete_lead_permanentaly(cls, db, lead_id):
+    async def delete_lead_permanentaly(cls, db, lead_id, user_id):
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
@@ -385,18 +431,38 @@ class LeadService:
         )
         await db.delete(lead)
         await db.commit()
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Delete Lead",
+            entity_id = lead_id,
+            log_type = "Delete",
+            prev_data = lead.to_dict(),
+            new_data =  {"detials": "all the related data like, assignment, remarks, History, and lead is deleted permanently."},
+            added_by = user_id,
+            admin_id = lead.admin_id
+            )
         logger.info("LeadService: lead data deleted permanently successfully.")
         return {"detail": f"Lead with id {lead_id} deleted successfully."}
 
 
     @classmethod
-    async def lead_mark_deleted(cls, db, lead_id):
+    async def lead_mark_deleted(cls, db, lead_id, user_id):
         lead = await LeadResponse.get_by_id(db, lead_id)
         if not lead:
             raise HTTPException(status_code=404, detail="lead not found.")
         lead.is_deleted = True
         await db.commit()
         await db.refresh(lead)
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Delete Lead",
+            entity_id = lead_id,
+            log_type = "Delete",
+            prev_data = {"lead_id":lead.id, "is_deleted": False},
+            new_data =  {"is_deleted": True},
+            added_by = user_id,
+            admin_id = lead.admin_id
+        )
         return {"detail": f"Lead with id : {lead_id} marked deleted successfully."}
 
 
@@ -560,7 +626,16 @@ class LeadService:
 
         for lead_id in created_lead_ids:
             await cls.auto_assign_lead(db, admin_id, lead_id)
-
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Add Lead",
+            entity_id = template_id,
+            log_type = "Add",
+            prev_data = None,
+            new_data =  {"lead_ids" : created_lead_ids},
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         return {"message": f"Successfully uploaded and assigned {len(lead_mappings)} leads"}
     
 
