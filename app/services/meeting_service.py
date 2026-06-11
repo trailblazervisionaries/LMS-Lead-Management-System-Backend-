@@ -1,7 +1,7 @@
 import os
 import base64
 import httpx
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from fastapi import HTTPException, status
 from dotenv import load_dotenv
 from app.models.meeting_model import MeetingData
@@ -9,6 +9,7 @@ from app.schemas.meeting_schemas import MeetingCreateResponse, MeetingCreateRequ
 from app.templates.send_template_mail import MailTemplatesService
 from app.backgroundTasks.MonitorAsync import MonitorAsync
 from app.models.audit_model import AuditLogs
+from sqlalchemy import select, func, case
 load_dotenv()
 import logging 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ class MeetingService:
                 logger.info("Meetingdata: New meeting created and link generated successfully.")
                 data = response.json()
 
-                saved_data = await MeetingData.save_meeting_detials(db, assistant_id, payload.lead_id, data)
+                saved_data = await MeetingData.save_meeting_detials(db, assistant_id, payload.lead_id, data, admin_id)
                 await AuditLogs.add_audit_log(
                     db = db,
                     entity_name = "Meeting",
@@ -181,6 +182,16 @@ class MeetingService:
                         data["join_url"]
                     )
                     logger.info("MeetingService: all the updated meeting info sent to the queue for the auto email sending.")
+                    await AuditLogs.add_audit_log(
+                        db = db,
+                        entity_name = "Meeting",
+                        entity_id = updated_data.id,
+                        log_type = "Update",
+                        prev_data = None,
+                        new_data =  updated_data.to_dict(),
+                        added_by = assistant_id,
+                        admin_id = admin_id
+                    )
                     return MeetingCreateResponse(
                         meeting_id=data["id"],
                         public_join_url=data["join_url"],       
@@ -196,7 +207,7 @@ class MeetingService:
 
                 
     @staticmethod
-    async def cancel_zoom_meeting(db, meeting_id: int, recipient_email: str, topic: str, admin_id):
+    async def cancel_zoom_meeting(db, meeting_id: int, recipient_email: str, topic: str, user_id, admin_id):
             """
             Deletes an existing Zoom meeting using its unique ID.
             """
@@ -221,6 +232,16 @@ class MeetingService:
                         meeting_id,
                         topic
                     )
+                    await AuditLogs.add_audit_log(
+                        db = db,
+                        entity_name = "Meeting",
+                        entity_id = deleted_data.id,
+                        log_type = "Deleted",
+                        prev_data = deleted_data.to_dict(),
+                        new_data =  {"user_id": user_id, "meeting_id": meeting_id, "detials":"meeting data deleted successfully"},
+                        added_by = user_id,
+                        admin_id = admin_id
+                    )
                     return {200, f"meeting with meeting_id : {meeting_id} is deleted Successfully."}
                 except httpx.HTTPStatusError as exc:
                     raise HTTPException(
@@ -229,7 +250,55 @@ class MeetingService:
                 
         
 
+    async def get_meet_data_by_lead_id_assistant_id(db, lead_id, assistant_id):
+        stmt = (select(MeetingData).where(MeetingData.lead_id == lead_id, MeetingData.added_by == assistant_id))
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+        
 
 
+
+
+
+    async def get_analytics_for_admin_or_assistant(
+        db, 
+        start_date: str, 
+        end_date: str, 
+        admin_id: str = None, 
+        assistant_id: str = None
+    ):
+        try:
+            start_parsed_date = datetime.strptime(start_date, "%d%m%Y").date()
+            end_parsed_date = datetime.strptime(end_date, "%d%m%Y").date()
+        except ValueError:
+            raise ValueError("Invalid date format. Expected 'ddmmyyyy' string (e.g., 20052026).")
+
+        from_date = datetime.combine(start_parsed_date, time.min)
+        end_date_time = datetime.combine(end_parsed_date, time.max)
+
+        completed_case = case((MeetingData.is_completed == True, 1))
+        uncompleted_case = case((MeetingData.is_completed == False, 1))
+
+        query = db.query(
+            func.count(MeetingData.id).label("total_meeting"),
+            func.count(completed_case).label("total_completed"),
+            func.count(uncompleted_case).label("total_uncompleted")
+        ).filter(
+            MeetingData.start_time >= from_date,
+            MeetingData.start_time <= end_date_time
+        )
+
+        if admin_id:
+            query = query.filter(MeetingData.admin_id == admin_id)
+        if assistant_id:
+            query = query.filter(MeetingData.added_by == assistant_id)
+
+        result = query.first()
+
+        return {
+            "total_meeting": result.total_meeting or 0,
+            "total_completed": result.total_completed or 0,
+            "total_uncompleted": result.total_uncompleted or 0
+        }
 
 

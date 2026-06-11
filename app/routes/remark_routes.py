@@ -76,27 +76,27 @@ async def get_lead_stats_and_remarks(request: Request, lead_id: str, db: Session
 @router.put("/assistant/{lead_id}/update/{remark_id}", response_model = LeadRemarkResponse)
 async def update_the_remarks_data(request: Request,  data: UpdateRemark, lead_id: str, remark_id: str, db: Session = Depends(get_db)):
     role = request.state.user.role
-    if role not in {"assistant","admin"}:
+    if role != "assistant":
         raise HTTPException(status_code=403, detials="Only assistants or admins can update lead remarks")
-    result = await LeadService.update_the_remarks_data(db, lead_id, remark_id, data)
+    result = await LeadService.update_the_remarks_data(db, lead_id, remark_id, data, request.state.user.user_id, request.state.user.admin_id)
     return LeadRemarkResponse.model_validate(result)
 
 
 @router.put("/assistant/{lead_id}/mark/{remark_id}", response_model = LeadRemarkResponse)
 async def mark_remarks_data_completed_(request: Request, lead_id: str, remark_id: str, db: Session = Depends(get_db)):
     role = request.state.user.role
-    if role not in {"assistant","admin"}:
+    if role != "assistant":
         raise HTTPException(status_code=403, detials="Only assistants or admins can update lead remarks")
-    result = await LeadService.mark_remarks_data_completed(db, lead_id, remark_id)
+    result = await LeadService.mark_remarks_data_completed(db, lead_id, remark_id, request.state.user.user_id, request.state.user.admin_id)
     return LeadRemarkResponse.model_validate(result)
 
 
 @router.delete("/assistant/delete/{lead_id}/mark/{remark_id}", response_model = LeadRemarkResponse)
 async def mark_remarks_data_deleted_(request: Request, lead_id: str, remark_id: str, db: Session = Depends(get_db)):
     role = request.state.user.role
-    if role not in {"assistant","admin"}:
+    if role != "assistant":
         raise HTTPException(status_code=403, detials="Only assistants or admins can deleted lead remarks")
-    result = await LeadService.mark_delete_remark_data(db, lead_id, remark_id)
+    result = await LeadService.mark_delete_remark_data(db, lead_id, remark_id, request.state.user.user_id, request.state.user.admin_id)
     return LeadRemarkResponse.model_validate(result)
 
 

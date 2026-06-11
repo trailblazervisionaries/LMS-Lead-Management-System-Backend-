@@ -31,7 +31,7 @@ async def delete_meetings(request: Request, meeting_id: str, data: MeetingDelete
     role = request.state.user.role
     if role != "assistant":
         raise HTTPException(403, "Sorry :( , You are not authorised to delete the meeting.")
-    return MeetingService.cancel_zoom_meeting(db, meeting_id, data.recipient_email, data.topic, request.state.user.admin_id)
+    return MeetingService.cancel_zoom_meeting(db, meeting_id, data.recipient_email, data.topic, request.state.user.user_id, request.state.user.admin_id)
 
 
 @router.get("/get-meeting/{lead_id}", response_model = MeetingResponse)
@@ -44,6 +44,21 @@ async def get_meeting(request: Request, lead_id: str, db: Session = Depends(get_
     return MeetingResponse.model_validate(meet)
 
 
+@router.get("/get-analytics/admin/{start_date}/{end_date}")
+async def get_analytics(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
+    admin_id = request.state.user.user_id
+    role = request.state.user.role
+    if role != "admin":
+        raise HTTPException(403, "You do not have the authority to access the this service.")
+    return MeetingService.get_analytics_for_admin_or_assistant(db, start_date, end_date, admin_id)
 
+
+@router.get("/get-analytics/assistant/{start_date}/{end_date}")
+async def get_analytics_(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
+    assistant_id = request.state.user.user_id
+    role = request.state.user.role
+    if role != "assistant":
+        raise HTTPException(403, "You do not have permission to get this data")
+    return MeetingService.get_analytics_for_admin_or_assistant(db, start_date, end_date, assistant_id)
 
 

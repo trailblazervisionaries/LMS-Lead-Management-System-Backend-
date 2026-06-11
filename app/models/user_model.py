@@ -48,6 +48,11 @@ class Users(Base):
                 result[column.name] = value.isoformat()
             else:
                 result[column.name] = value
+
+            if hasattr(self, 'address') and self.address is not None:
+                result['address'] = self.address.to_dict()
+            elif hasattr(self, 'address'):
+                result['address'] = None
                 
         return result
 

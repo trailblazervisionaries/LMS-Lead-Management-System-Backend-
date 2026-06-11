@@ -17,9 +17,7 @@ class FormTemplate(Base):
 
     
     def to_dict(self, exclude=None):
-        if exclude is None:
-            exclude = ["password"]  # Protect sensitive fields
-            
+   
         result = {}
         for column in self.__table__.columns:
             if column.name in exclude:
@@ -85,9 +83,7 @@ class LeadResponse(Base):
 
 
     def to_dict(self, exclude=None):
-        if exclude is None:
-            exclude = ["password"]  # Protect sensitive fields
-            
+
         result = {}
         for column in self.__table__.columns:
             if column.name in exclude:
@@ -333,9 +329,7 @@ class LeadRemarks(Base):
 
     
     def to_dict(self, exclude=None):
-        if exclude is None:
-            exclude = ["password"]  # Protect sensitive fields
-            
+
         result = {}
         for column in self.__table__.columns:
             if column.name in exclude:
@@ -451,9 +445,7 @@ class LeadStatusHistory(Base):
     
     
     def to_dict(self, exclude=None):
-        if exclude is None:
-            exclude = ["password"]  # Protect sensitive fields
-            
+
         result = {}
         for column in self.__table__.columns:
             if column.name in exclude:
@@ -489,9 +481,7 @@ class LeadAssignment(Base):
 
     
     def to_dict(self, exclude=None):
-        if exclude is None:
-            exclude = ["password"]  # Protect sensitive fields
-            
+
         result = {}
         for column in self.__table__.columns:
             if column.name in exclude:

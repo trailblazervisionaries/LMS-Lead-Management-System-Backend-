@@ -61,7 +61,7 @@ class AssistantService:
             await db.refresh(new_assistant, ["address"])
             await AuditLogs.add_audit_log(
                 db =db,
-                entity_name="Add Assistant",
+                entity_name="Assistant",
                 entity_id = new_assistant.user_id,
                 log_type = "ADD",
                 prev_data = None,
@@ -98,6 +98,7 @@ class AssistantService:
     @classmethod
     async def update_assistant(cls, db, user_id: str, data: UserUpdate, request: Request):
         assistant = await Users.get_by_id_with_address(db, user_id)
+        old_data_snapshot = assistant.to_dict()
         if not assistant:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
@@ -128,10 +129,10 @@ class AssistantService:
 
             await AuditLogs.add_audit_log(
                 db = db,
-                entity_name="Update Assistant",
+                entity_name="Assistant",
                 entity_id = user_id,
                 log_type = "Update",
-                prev_data = assistant.to_dict(),
+                prev_data = old_data_snapshot,
                 new_data = data.model_dump(mode="json"),
                 added_by = user_id,
                 admin_id = assistant.admin_id
@@ -218,7 +219,7 @@ class AssistantService:
         await db.refresh(assistant)
         await AuditLogs.add_audit_log(
                 db = db,
-                entity_name="Activate assistant",
+                entity_name="Assistant",
                 entity_id = assistant.user_id,
                 log_type = "Update",
                 prev_data = {"is_active": assistant.is_active},
@@ -242,7 +243,7 @@ class AssistantService:
         await db.refresh(assistant)
         await AuditLogs.add_audit_log(
                 db = db,
-                entity_name="Deactivate Assistant",
+                entity_name="Assistant",
                 entity_id = assistant.user_id,
                 log_type = "Update",
                 prev_data = {"is_active": assistant.is_active},

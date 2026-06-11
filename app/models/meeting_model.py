@@ -20,25 +20,9 @@ class MeetingData(Base):
     start_time = Column(DateTime, nullable = False)
     created_at = Column(DateTime, default = datetime.utcnow)
     added_by = Column(String, nullable = False)
+    admin_id = Column(String, nullable = False)
+    is_completed = Column(Boolean, default = False)
 
-    def to_dict(self, exclude=None):
-        if exclude is None:
-            exclude = ["password"]  # Protect sensitive fields
-            
-        result = {}
-        for column in self.__table__.columns:
-            if column.name in exclude:
-                continue
-                
-            value = getattr(self, column.name)
-            
-            # Convert datetime objects to string format
-            if isinstance(value, datetime):
-                result[column.name] = value.isoformat()
-            else:
-                result[column.name] = value
-                
-        return result
 
 
     @staticmethod
@@ -62,7 +46,7 @@ class MeetingData(Base):
         }
 
 
-    async def save_meeting_detials(db, assistant_id, lead_id, data):
+    async def save_meeting_detials(db, assistant_id, lead_id, data, admin_id):
         new_meeting = MeetingData(
             id = generate_id(lead_id),
             lead_id = lead_id,
@@ -72,7 +56,8 @@ class MeetingData(Base):
             duration = data["duration"],
             topic = data["topic"],
             start_time = data["start_time"],
-            added_by = assistant_id
+            added_by = assistant_id,
+            admin_id = admin_id
         )
 
         db.add(new_meeting)
@@ -101,9 +86,7 @@ class MeetingData(Base):
 
 
     def to_dict(self, exclude=None):
-        if exclude is None:
-            exclude = ["password"]  # Protect sensitive fields
-            
+
         result = {}
         for column in self.__table__.columns:
             if column.name in exclude:

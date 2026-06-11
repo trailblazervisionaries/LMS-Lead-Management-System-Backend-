@@ -28,7 +28,7 @@ class FormService:
         db.add(new_template)
         await AuditLogs.add_audit_log(
             db = db,
-            entity_name="Add Form",
+            entity_name="Form",
             entity_id = new_template.id,
             log_type = "Add",
             prev_data = None,
@@ -52,6 +52,7 @@ class FormService:
     @classmethod
     async def update_the_lead_form(cls, db: Session, template_id: str, data, admin_id: str):
         existing_template = await FormTemplate.get_form_by_id(db, template_id)
+        old_data = existing_template.to_dict()
         if not existing_template or existing_template.admin_id != admin_id:
             raise HTTPException(status_code=404, detail="Form template not found")
 
@@ -61,10 +62,10 @@ class FormService:
             existing_template.is_active = data.is_active
         await AuditLogs.add_audit_log(
             db = db,
-            entity_name = "Update Form",
+            entity_name = "Form",
             entity_id = template_id,
             log_type = "Update",
-            prev_data = existing_template.to_dict(),
+            prev_data = old_data,
             new_data =  data.schema_definition,
             added_by = admin_id,
             admin_id = admin_id
@@ -86,10 +87,10 @@ class FormService:
         template.is_active = True
         await AuditLogs.add_audit_log(
             db = db,
-            entity_name = "Activate Form",
+            entity_name = "Form",
             entity_id = template_id,
             log_type = "Update",
-            prev_data = template.to_dict(),
+            prev_data = {"is_active": False},
             new_data =  {"is_active" : True},
             added_by = admin_id,
             admin_id = admin_id
@@ -110,10 +111,10 @@ class FormService:
         await db.refresh(template)
         await AuditLogs.add_audit_log(
             db = db,
-            entity_name = "Deactivate Form",
+            entity_name = "Form",
             entity_id = template_id,
             log_type = "Update",
-            prev_data = template.to_dict(),
+            prev_data = {"is_active": True},
             new_data =  {"is_active" : False},
             added_by = admin_id,
             admin_id = admin_id
@@ -125,16 +126,17 @@ class FormService:
     @classmethod
     async def delete_form_by_admin_id(cls, db: Session, template_id: str, admin_id: str):
         template = await FormTemplate.get_form_by_id(db, template_id)
+        old_data= template.to_dict()
         if not template or template.admin_id != admin_id:
             raise HTTPException(status_code=404, detail="Form template not found")
         await db.delete(template)
         await db.commit()
         await AuditLogs.add_audit_log(
             db = db,
-            entity_name = "Delete Form",
+            entity_name = "Form",
             entity_id = template_id,
             log_type = "Delete",
-            prev_data = template.to_dict(),
+            prev_data = old_data,
             new_data =  None,
             added_by = admin_id,
             admin_id = admin_id
@@ -145,16 +147,17 @@ class FormService:
     @classmethod
     async def delete_form_by_template_id(cls, db: Session, template_id: str):
         template = await FormTemplate.get_form_by_id(db, template_id)
+        old_data= template.to_dict()
         if not template:
             raise HTTPException(status_code=404, detail="Form template not found")
         await db.delete(template)
         await db.commit()
         await AuditLogs.add_audit_log(
             db = db,
-            entity_name = "Delete Form",
+            entity_name = "Form",
             entity_id = template_id,
             log_type = "Delete",
-            prev_data = template.to_dict(),
+            prev_data = old_data,
             new_data =  {"is_deleted" : True},
             added_by = template.admin_id,
             admin_id = template.admin_id
