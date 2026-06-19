@@ -72,15 +72,15 @@ alembic.ini
 # Ignore Alembic because now it not used
 alembic/
 
-firebase_credentials.json
 
-# ⛔ Ignore the rms-front folder (you requested this)
+
+
 
 uploads/
 
 mdfiles/
 mdfile2/
-
+lm_front/
 frontend/
 test.py
 pract.py

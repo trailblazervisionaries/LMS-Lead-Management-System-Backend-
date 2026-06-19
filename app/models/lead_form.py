@@ -485,16 +485,13 @@ class LeadAssignment(Base):
         result = {}
         for column in self.__table__.columns:
             if column.name in exclude:
-                continue
-                
+                continue  
             value = getattr(self, column.name)
-            
             # Convert datetime objects to string format
             if isinstance(value, datetime):
                 result[column.name] = value.isoformat()
             else:
-                result[column.name] = value
-                
+                result[column.name] = value     
         return result
 
     @classmethod
@@ -523,7 +520,6 @@ class LeadAssignment(Base):
                 )
             )
         )
-        
         result = await db.execute(stmt)
         return result.scalars().all()
 
@@ -636,4 +632,5 @@ class LeadAssignment(Base):
         }
 
 
+        
         

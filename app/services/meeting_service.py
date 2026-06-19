@@ -62,7 +62,6 @@ class MeetingService:
         """
         access_token = await MeetingService.get_zoom_access_token()
         
-        # FIX: Use correct Zoom API endpoint for creating meetings
         zoom_url = "https://api.zoom.us/v2/users/me/meetings"
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -139,14 +138,13 @@ class MeetingService:
             Updates details of an existing Zoom meeting and triggers an update email.
             """
             access_token = await MeetingService.get_zoom_access_token()
-            # Zoom API endpoint requires the /v2/meetings/ path
+
             zoom_url = f"https://zoom.us{meeting_id}"
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
             }
-            
-            # Build update payload dynamically based on what fields were passed
+
             update_data = {}
             if payload.topic is not None:
                 update_data["topic"] = payload.topic
@@ -163,7 +161,7 @@ class MeetingService:
                     patch_response = await client.patch(zoom_url, json=update_data, headers=headers)
                     patch_response.raise_for_status()
                     logger.info("MeetingService: meeting data updation completed successfully.")
-                    # from Zoom to get the valid system configurations and runtime join_url strings.
+
                     get_response = await client.get(zoom_url, headers=headers)
                     get_response.raise_for_status()
                     data = get_response.json()
@@ -255,10 +253,7 @@ class MeetingService:
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
         
-
-
-
-
+        
 
     async def get_analytics_for_admin_or_assistant(
         db, 
@@ -300,5 +295,4 @@ class MeetingService:
             "total_completed": result.total_completed or 0,
             "total_uncompleted": result.total_uncompleted or 0
         }
-
 

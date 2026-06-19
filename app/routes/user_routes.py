@@ -39,6 +39,10 @@ async def user_reset_password( data: ResetPassword, db: Session = Depends (get_d
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "Password reset successfully"}
 
+@router.post("/public/refresh")
+async def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    return await UserServices.refresh_access_token(db, request, response)
+
 #  user logout routes =====================================
 @router.post("/logout")
 def logout(request: Request, response: Response):

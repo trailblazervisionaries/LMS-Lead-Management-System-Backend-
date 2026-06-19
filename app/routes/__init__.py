@@ -52,6 +52,7 @@ class APIMiddleware(BaseHTTPMiddleware):
             "/api/admin/public",
             "/api/form/public",
             "/api/users/public",
+            "/api/users/public/refresh",
             "/api/lead/add",
             "/send-test-email",
             "/docs",
