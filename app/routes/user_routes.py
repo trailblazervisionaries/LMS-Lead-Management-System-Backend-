@@ -19,6 +19,7 @@ async def change_user_password(request: Request, data: PasswordChange, db: Sessi
     user_id = request.state.user.user_id
     user = await UserServices.update_user_password(db, user_id, data.new_password)
     if not user:
+        logger.info("change-password route: user not found.")
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "Password updated successfully"}
 
@@ -26,6 +27,7 @@ async def change_user_password(request: Request, data: PasswordChange, db: Sessi
 async def user_forget_password(data: ForgetPassword, db: Session = Depends(get_db)):
     user = await UserServices.forgot_password(db, data.email)
     if not user:
+        logger.info("forget password route: User not found.")
         raise HTTPException(status_code=404, detail="user not found")
     return {"message": "OTP sent to your email"}
 
@@ -33,13 +35,20 @@ async def user_forget_password(data: ForgetPassword, db: Session = Depends(get_d
 async def user_reset_password( data: ResetPassword, db: Session = Depends (get_db)):
     user = await UserServices.reset_password(db, data.email, data.otp, data.new_password)
     if not user:
+        logger.info("reset-password: User not found.")
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "Password reset successfully"}
+
+@router.post("/public/refresh")
+async def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    return await UserServices.refresh_access_token(db, request, response)
 
 #  user logout routes =====================================
 @router.post("/logout")
 def logout(request: Request, response: Response):
-    return UserServices.logout(request, response)
+    data = UserServices.logout(request, response)
+    logger.info(f"logout route: {data}")
+    return data
 
 
 

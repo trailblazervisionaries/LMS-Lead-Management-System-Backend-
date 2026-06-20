@@ -56,6 +56,8 @@ async def create_tables():
         "app.models.address_model",
         "app.models.user_model",
         "app.models.lead_form",
+        "app.models.audit_model",
+        "app.models.meeting_model"
     ]
 
     for m in modules:

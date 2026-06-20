@@ -49,6 +49,7 @@ class UserResponse(BaseModel):
     is_active: bool
     is_deleted: bool
     created_at: datetime
+    admin_id: Optional[str] = None
     # FIXED: updated_at can be None on creation, so make it Optional
     updated_at: datetime | None = None 
     
@@ -85,5 +86,28 @@ class ResetPassword(BaseModel):
     otp: str
     new_password: str
 
+class AssistantNameIdResponse(BaseModel):
+    name: str
+    user_id: str
+
+    class Config:
+        from_attributes = True
 
 
+class ComposeEmailRequest(BaseModel):
+    email_to: EmailStr
+    subject: str
+    body: str
+
+class EmailRecipient(BaseModel):
+    email: EmailStr
+    
+class ComposeBulkEmailRequest(BaseModel):
+    email_to: list[EmailRecipient]
+    subject: str
+    body: str
+
+
+class ComposeBulkEmailToUsers(BaseModel):
+    subject: str
+    body: str

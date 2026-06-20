@@ -22,9 +22,28 @@ class Address(Base):
 
     user = relationship("Users", back_populates="address")
 
-    
 
 
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = set()
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
 
-
+            if hasattr(self, 'address') and self.address is not None:
+                result['address'] = self.address.to_dict()
+            elif hasattr(self, 'address'):
+                result['address'] = None
+                
+        return result
     

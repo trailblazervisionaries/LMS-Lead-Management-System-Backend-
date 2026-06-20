@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 # safe env reads with defaults and strip
 RAW_EMAIL = os.getenv("FROM_EMAIL").strip()
-EMAIL_FROM = f"InvestmentPortal (no-reply) <{RAW_EMAIL}>"
+EMAIL_FROM = f"Lead Management (no-reply) <{RAW_EMAIL}>"
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com").strip()
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587").strip())
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "").strip()
@@ -58,8 +58,8 @@ class MailService:
             raise HTTPException(
                 status_code=500,
                 detail=(
-                    "SMTP authentication failed. Check EMAIL_HOST_USER and EMAIL_HOST_PASSWORD. "
-                    "If using Gmail enable 2-Step Verification and create an App Password."
+                    "SMTP authentication failed. Check EMAIL HOST USER and EMAIL HOST PASSWORD. "
+                    "If you are using Gmail enable 2-Step Verification and create an App Password."
                 ),
             )
         except SMTPConnectError as e:

@@ -21,7 +21,7 @@ async def updated_admin(data: UserUpdate, request: Request, db: Session = Depend
     admin = await AdminService.update_admin(db, user_id, data, request)
     return UserResponse.model_validate(admin)
 
-
+ 
 
 @router.get("/me", response_model = UserResponse)
 async def get_me(request: Request, db: Session = Depends(get_db)):
@@ -39,6 +39,9 @@ async def deleted_assistant_account(request: Request, admin_id: str, db: Session
     if role != "admin":
         raise HTTPException(403, "You don't have the required permissions to perform this operation.")
     return AdminService.delete_admin_account_by_id(db, admin_id)
+
+
+
 
 
 

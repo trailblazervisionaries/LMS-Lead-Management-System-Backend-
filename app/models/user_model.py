@@ -29,6 +29,33 @@ class Users(Base):
     form = relationship("FormTemplate", back_populates="admin")
     assignment  = relationship("LeadAssignment", back_populates="assistant")
 
+    
+
+
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = ["password"]  # Protect sensitive fields
+            
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+
+            if hasattr(self, 'address') and self.address is not None:
+                result['address'] = self.address.to_dict()
+            elif hasattr(self, 'address'):
+                result['address'] = None
+                
+        return result
+
 
     @classmethod
     async def get_by_email(cls, db, email):

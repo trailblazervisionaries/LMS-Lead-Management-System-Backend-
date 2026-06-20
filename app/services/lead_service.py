@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.core.utils_functions import generate_id
-from sqlalchemy import select, insert, func, or_
+from sqlalchemy import select, insert, func, or_, delete, distinct
 from datetime import datetime
 from dotenv import load_dotenv
 from app.models.lead_form import (
@@ -12,6 +12,7 @@ from app.models.lead_form import (
     LeadStatusHistory,
     LeadAssignment,
 )
+from app.models.audit_model import AuditLogs
 import pandas as pd
 import io
 from app.models.user_model import Users
@@ -29,7 +30,7 @@ class LeadService:
         template = await FormTemplate.get_form_by_id(db, data.template_id)
         if not template or not template.is_active:
             raise HTTPException(status_code=404, detail="Lead form template not found or inactive")
-
+        logger.info("LeadService: Template found for the peovided id.")
         admin_id = template.admin_id
         lead_duplicate = await LeadResponse.get_lead(
             db,
@@ -58,8 +59,9 @@ class LeadService:
         db.add(created_status)
         await db.commit()
         await db.refresh(new_lead)
-
+        logger.info("LeadService: new lead with their status history created successfully.")
         await cls.auto_assign_lead(db, admin_id, new_lead.id)
+        logger.info("LeadService: lead auto assigned amoung the available assistants.")
         return new_lead
 
 
@@ -75,7 +77,7 @@ class LeadService:
         assistants = result.scalars().all()
         if not assistants:
             return None
-
+        logger.info("LeadService:fetched the detials of available Assistants for assigning the leads.")
         least_assigned = None
         lowest_count = None
         for assistant in assistants:
@@ -90,7 +92,7 @@ class LeadService:
 
         if not least_assigned:
             return None
-
+    
         new_assignment = LeadAssignment(
             id=generate_id(lead_id),
             lead_id=lead_id,
@@ -105,8 +107,43 @@ class LeadService:
 
         db.add(new_assignment)
         db.add(assigned_status)
+        logger.info("LeadService: Lead is assigned and the status history also changed successfully.")
         await db.commit()
         return new_assignment
+
+    async def get_lead_by_id(db, lead_id):
+        stmt = (select(LeadResponse).where(LeadResponse.id == lead_id))
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+    
+    @classmethod
+    async def update_lead_response_data(cls, db, lead_id, user_id, data):
+        print(lead_id, user_id, data)
+        stmt = select(LeadResponse).where(LeadResponse.id == lead_id, LeadResponse.is_deleted == False)
+        result = await db.execute(stmt)
+        lead = result.scalar_one_or_none()
+        if not lead:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="LeadService: Lead data not found for the provided lead_id."
+            )
+        old_data = lead.to_dict()
+        if data.submitted_data is not None:
+            lead.submitted_data = data.submitted_data
+        await db.commit()
+        await db.refresh(lead)
+        logger.info("LeadService: Lead data updated sucessfully as per request of lead owner.")
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Lead",
+            entity_id = lead_id,
+            log_type = "Update",
+            prev_data = old_data,
+            new_data =  data.submitted_data,
+            added_by = user_id,
+            admin_id = lead.admin_id
+        )
+        return lead
 
 
     @classmethod
@@ -114,7 +151,7 @@ class LeadService:
         unassigned_leads = await LeadAssignment.get_unassigned_leads_by_admin(db, admin_id)
         if not unassigned_leads:
             return {"leads_assigned": 0, "assistants_involved": 0}
-
+        logger.info("LeadService: collected the data od unassigned leads.")
         assistant_stmt = select(Users).where(
             Users.admin_id == admin_id,
             Users.role == "assistant",
@@ -125,7 +162,7 @@ class LeadService:
         assistants = result.scalars().all()
         if not assistants:
             return {"leads_assigned": 0, "assistants_involved": 0}
-
+        logger.info("LeadService: Fetched the assistant data to assignmen the leads.")
         counts = {}
         for assistant in assistants:
             counts[assistant.user_id] = 0
@@ -155,6 +192,7 @@ class LeadService:
             assignments_created += 1
 
         if assignments_created:
+            logger.info("LeadService: leads assigned successfully and lead status also changed successsfully.")
             await db.commit()
 
         return {
@@ -165,8 +203,12 @@ class LeadService:
 
     @classmethod
     async def assign_unassigned_leads_to_specific_user(cls, db, admin_id, data):
-            lead_assign = LeadAssignment.get_by_lead_id(db, data.lead_id)
+            logger.info("lead_id", data.lead_id)
+            lead_assign = await LeadAssignment.get_by_lead_id(db, data.lead_id)
+            logger.info("lead_assign data ", lead_assign.lead_id)
+            previ_data=None
             if lead_assign:
+                previ_data = lead_assign.to_dict()
                 lead_assign.is_deleted = True
 
             new_assignment = LeadAssignment(
@@ -183,11 +225,21 @@ class LeadService:
             )
             db.add(status)
             await db.commit()
+            await AuditLogs.add_audit_log(
+                db = db,
+                entity_name = "Lead Assign",
+                entity_id = new_assignment.id,
+                log_type = "Add",
+                prev_data = previ_data,
+                new_data =  new_assignment.to_dict(),
+                added_by = admin_id,
+                admin_id = admin_id
+            )
             return {
                 "id": new_assignment.id,
                 "lead_id": new_assignment.lead_id,
-                "status": new_assignment.status,
-                "changed_by": new_assignment.changed_by,
+                "status": status.status,
+                "changed_by": status.changed_by,
                 "created_at": new_assignment.created_at,
             }
     
@@ -214,6 +266,17 @@ class LeadService:
         db.add(status)
         await db.commit()
         await db.refresh()
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Lead Assign",
+            entity_id = new_assignment.id,
+            log_type = "Add",
+            prev_data = None,
+            new_data =  new_assignment.to_dict(),
+            added_by = admin_id,
+            admin_id = admin_id
+        )
+        logger.info("LeadService: Lead is assignd to a specific assistant.")
         return new_assignment
     
 
@@ -221,68 +284,216 @@ class LeadService:
     async def get_leads_for_admin(cls, db: Session, admin_id: str, page: int = 1, size: int = 20):
         return await LeadResponse.get_all_by_admin_id(db, admin_id, page, size)
 
+
     @classmethod
     async def get_leads_for_assistant(cls, db: Session, assistant_id: str, page: int = 1, size: int = 20):
         return await LeadAssignment.get_all_paginated_leads_by_assistant_id(db, assistant_id, page, size)
 
+
+    # @classmethod
+    # async def add_new_remark_and_status(cls, db: Session, lead_id: str, user_id: str, role: str, data):
+    #     lead = await LeadResponse.get_lead_by_id(db, lead_id)
+    #     if not lead:
+    #         raise HTTPException(status_code=404, detail="Lead not found")
+    #     logger.info("LeadService: leads data find successfully.")
+    #     if role == "assistant":
+    #         assignment = await LeadAssignment.get_assistant_by_lead_id(db, lead_id)
+    #         if not assignment or assignment.assistant_id != user_id:
+    #             raise HTTPException(status_code=403, detail="Lead not assigned to this assistant")
+    #         logger.info("LeadService: Assignment data fetched Successfully.")
+    #     if data.status:
+    #         status_entry = LeadStatusHistory(
+    #             id=generate_id(user_id),
+    #             lead_id=lead_id,
+    #             status=data.status,
+    #             changed_by=user_id,
+    #         )
+    #         db.add(status_entry)
+    #         logger.info("LeadService: lead status history updated successfully.")
+
+
+    #     if data.remarks or data.next_follow_up_date is not None or data.is_completed is not None:
+    #         remark_entry = LeadRemarks(
+    #             id=generate_id(lead_id),
+    #             for_lead=lead_id,
+    #             remarks=data.remarks,
+    #             next_follow_up_date=data.next_follow_up_date,
+    #             is_completed=data.is_completed if data.is_completed is not None else False,
+    #         )
+    #         db.add(remark_entry)
+    #         logger.info("LeadService: lead remarks add successfully.")
+    #     await db.commit()
+    #     await db.refresh(lead)
+    #     return {
+    #         "lead_id": lead_id,
+    #         "status_history": [status_entry] if status_entry else [],
+    #         "remarks": [remark_entry] if remark_entry else []
+    #     }
+    
     @classmethod
-    async def update_lead(cls, db: Session, lead_id: str, user_id: str, role: str, data):
+    async def add_new_remark_and_status(cls, db: Session, lead_id: str, user_id: str, role: str, data):
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
-
+        logger.info("LeadService: leads data find successfully.")
         if role == "assistant":
             assignment = await LeadAssignment.get_assistant_by_lead_id(db, lead_id)
             if not assignment or assignment.assistant_id != user_id:
                 raise HTTPException(status_code=403, detail="Lead not assigned to this assistant")
-
+            logger.info("LeadService: Assignment data fetched Successfully.")
+        
+        status_entry = None
         if data.status:
-            status_entry = LeadStatusHistory(
-                id=generate_id(user_id),
-                lead_id=lead_id,
-                status=data.status,
-                changed_by=user_id,
+            prev_status_stmt = (
+                select(LeadStatusHistory)
+                .where(LeadStatusHistory.lead_id == lead_id)
+                .order_by(LeadStatusHistory.created_at.desc())
+                .limit(1)
             )
-            db.add(status_entry)
+            prev_status_res = await db.execute(prev_status_stmt)
+            latest_status_record = prev_status_res.scalars().first()
 
+            if not latest_status_record or latest_status_record.status != data.status:
+                status_entry = LeadStatusHistory(
+                    id=generate_id(user_id),
+                    lead_id=lead_id,
+                    status=data.status,
+                    changed_by=user_id,
+                )
+                db.add(status_entry)
+                logger.info("LeadService: lead status history updated successfully.")
+            else:
+                logger.info("LeadService: Status is identical to previous entry. Skipping insert.")
+
+        remark_entry = None
         if data.remarks or data.next_follow_up_date is not None or data.is_completed is not None:
-            remark_entry = LeadRemarks(
-                id=generate_id(lead_id),
-                for_lead=lead_id,
-                remarks=data.remarks,
-                next_follow_up_date=data.next_follow_up_date,
-                is_completed=data.is_completed if data.is_completed is not None else False,
+            prev_remark_stmt = (
+                select(LeadRemarks)
+                .where(LeadRemarks.for_lead == lead_id)
+                .order_by(LeadRemarks.created_at.desc())
+                .limit(1)
             )
-            db.add(remark_entry)
+            prev_remark_res = await db.execute(prev_remark_stmt)
+            latest_remark_record = prev_remark_res.scalars().first()
 
+            if not latest_remark_record or latest_remark_record.is_completed is True:
+                remark_entry = LeadRemarks(
+                    id=generate_id(lead_id),
+                    for_lead=lead_id,
+                    remarks=data.remarks,
+                    next_follow_up_date=data.next_follow_up_date,
+                    is_completed=data.is_completed if data.is_completed is not None else False,
+                )
+                db.add(remark_entry)
+                logger.info("LeadService: lead remarks added successfully.")
+            else:
+                logger.info("LeadService: Immediate previous remark is uncompleted (False). Skipping insert.")
+                raise HTTPException(status_code=500, detail="First please mark completed True for immidiate previous remark then you can add new one ok")
         await db.commit()
-        await db.refresh(lead)
-        return lead
-    
+        
+        return {
+            "lead_id": lead_id,
+            "status_history": [status_entry] if status_entry else [],
+            "remarks": [remark_entry] if remark_entry else []
+        }
+
 
     @classmethod
-    async def delete_lead_permanentaly(cls, db, lead_id):
+    async def get_lead_history_and_remarks(cls, db: Session, lead_id: str):
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
+        
+        status_stmt = select(LeadStatusHistory).where(LeadStatusHistory.lead_id == lead_id).order_by(LeadStatusHistory.created_at.desc())
+        status_result = await db.execute(status_stmt)
+        statuses = status_result.scalars().all()
+        logger.info(f"LeadService: Fetched {len(statuses)} status history entries.")
+
+        remarks_stmt = select(LeadRemarks).where(LeadRemarks.for_lead == lead_id, LeadRemarks.is_deleted == False).order_by(LeadRemarks.created_at.desc())
+        remarks_result = await db.execute(remarks_stmt)
+        remarks = remarks_result.scalars().all()
+        logger.info(f"LeadService: Fetched {len(remarks)} remarks.")
+
+        return {
+            "lead_id": lead_id,
+            "status_history": statuses,
+            "remarks": remarks
+        }
+
+
+    @classmethod
+    async def delete_lead_permanentaly(cls, db, lead_id, user_id):
+        lead = await LeadResponse.get_lead_by_id(db, lead_id)
+        old_data = lead.to_dict()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+
+        await db.execute(
+            delete(LeadAssignment).where(LeadAssignment.lead_id == lead_id)
+        )
+        await db.execute(
+            delete(LeadRemarks).where(LeadRemarks.for_lead == lead_id)
+        )
+        await db.execute(
+            delete(LeadStatusHistory).where(LeadStatusHistory.lead_id == lead_id)
+        )
         await db.delete(lead)
         await db.commit()
-        return {"detail": f"Lead with id {lead_id} deleted successfully"}
-    
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Lead",
+            entity_id = lead_id,
+            log_type = "Delete",
+            prev_data = old_data,
+            new_data =  {"detials": "all the related data like, assignment, remarks, History, and lead is deleted permanently."},
+            added_by = user_id,
+            admin_id = lead.admin_id
+            )
+        logger.info("LeadService: lead data deleted permanently successfully.")
+        return {"detail": f"Lead with id {lead_id} deleted successfully."}
+
 
     @classmethod
-    async def lead_mark_deleted(cls, db, lead_id):
+    async def lead_mark_deleted(cls, db, lead_id, user_id):
         lead = await LeadResponse.get_by_id(db, lead_id)
         if not lead:
-            raise HTTPException(status_code=404, detail="lead not found")
-        await db.is_deleted == True
+            raise HTTPException(status_code=404, detail="lead not found.")
+        lead.is_deleted = True
         await db.commit()
-        return {"detail": f"Lead with id {lead_id} deleted successfully"}
+        await db.refresh(lead)
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Lead",
+            entity_id = lead_id,
+            log_type = "Delete",
+            prev_data = {"lead_id":lead.id, "is_deleted": False},
+            new_data =  {"is_deleted": True},
+            added_by = user_id,
+            admin_id = lead.admin_id
+        )
+        return {"detail": f"Lead with id : {lead_id} marked deleted successfully."}
 
 
     @classmethod
-    async def get_todays_followups(cls, db: Session, date: str, assistant_id: str = None, admin_id: str = None):
-        return await LeadRemarks.get_today_follow_ups(db, date, admin_id, assistant_id)
+    async def get_todays_followups(
+        cls,
+        db: Session,
+        start_date: str,
+        end_date: str,
+        assistant_id: str = None,
+        admin_id: str = None,
+        page: int = 1,
+        size: int = 20,
+    ):
+        return await LeadRemarks.get_today_follow_ups(
+            db,
+            start_date,
+            end_date,
+            admin_id=admin_id,
+            assistant_id=assistant_id,
+            page=page,
+            size=size,
+        )
 
 
     @classmethod
@@ -290,7 +501,9 @@ class LeadService:
         lead = await LeadResponse.get_lead_by_id(db, lead_id)
         if not lead:
             return None
+        logger.info("LeadService: lead data fetched successfully.")
         history = await LeadStatusHistory.get_all_lead_history(db, lead_id)
+        logger.info("LeadServices: lead history data fetched successfully.")
         return [
             {
                 "id": item.id,
@@ -311,6 +524,7 @@ class LeadService:
         
         # Validate template status
         template = await FormTemplate.get_form_by_id(db, template_id)
+        logger.info("LeadService: template data fetched successfully.")
         if not template or not template.is_active:
             raise HTTPException(status_code=404, detail="Lead form template not found or inactive")
 
@@ -437,7 +651,16 @@ class LeadService:
 
         for lead_id in created_lead_ids:
             await cls.auto_assign_lead(db, admin_id, lead_id)
-
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Lead",
+            entity_id = template_id,
+            log_type = "Add",
+            prev_data = None,
+            new_data =  {"lead_ids" : created_lead_ids},
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         return {"message": f"Successfully uploaded and assigned {len(lead_mappings)} leads"}
     
 
@@ -446,79 +669,200 @@ class LeadService:
 
 # analytics routes ==========================
 
-
     @classmethod
     async def get_lead_status_analytics(
-        cls, 
-        db: Session, 
-        admin_id: str = None, 
+        cls,
+        db,
+        admin_id: str = None,
         assistant_id: str = None
     ):
         """
-        Returns metrics count for 'Created', 'Assigned', 'Contacted', 'Interested', 'Converted'
-        filtered dynamically by admin_id or assistant_id.
-        """
-        
-        # 1. Create subquery to isolate the LATEST active history status row for each unique lead
-        # This prevents counting old historical transitions for the same lead.
-        latest_status_subquery = (
-            select(
-                LeadStatusHistory.lead_id,
-                LeadStatusHistory.status
-            )
-            .distinct(LeadStatusHistory.lead_id)
-            .where(LeadStatusHistory.is_deleted == False)
-            .order_by(LeadStatusHistory.lead_id, LeadStatusHistory.created_at.desc())
-        ).subquery()
+        Admin:
+            Shows analytics for all leads created by admin.
 
-        # 2. Build the main query joining LeadResponse with our cleaned subquery status profile
-        stmt = select(
-            # Conditional aggregation counts matching status instances cleanly in 1 database pass
-            func.count().filter(latest_status_subquery.c.status == "Created").label("total_created"),
-            func.count().filter(latest_status_subquery.c.status == "Assigned").label("total_assigned"),
-            func.count().filter(latest_status_subquery.c.status == "Contacted").label("total_contacted"),
-            func.count().filter(latest_status_subquery.c.status == "Interested").label("total_interested"),
-            func.count().filter(latest_status_subquery.c.status == "Converted").label("total_converted")
-        ).select_from(LeadResponse).join(
-            latest_status_subquery, 
-            LeadResponse.id == latest_status_subquery.c.lead_id
-        ).where(
+        Assistant:
+            Shows analytics only for leads assigned to assistant.
+        """
+
+        if not admin_id and not assistant_id:
+            return {
+                "total_created": 0,
+                "total_assigned": 0,
+                "total_contacted": 0,
+                "total_interested": 0,
+                "total_converted": 0,
+            }
+
+        # Base query
+        lead_query = select(LeadResponse.id).where(
             LeadResponse.is_deleted == False
         )
 
-        # 3. Dynamically apply business isolation parameters (Admin scoping vs Assistant assignment mapping)
+        # Admin filter
+        if admin_id:
+            lead_query = lead_query.where(
+                LeadResponse.admin_id == admin_id
+            )
+
+        # Assistant filter
         if assistant_id:
-            # Join assignments table to isolate context down to a specific working assistant identity
-            stmt = stmt.join(
-                LeadAssignment, 
-                LeadAssignment.lead_id == LeadResponse.id
-            ).where(
-                LeadAssignment.assistant_id == assistant_id,
+            lead_query = (
+                lead_query
+                .join(
+                    LeadAssignment,
+                    LeadAssignment.lead_id == LeadResponse.id
+                )
+                .where(
+                    LeadAssignment.assistant_id == assistant_id,
+                    LeadAssignment.is_deleted == False
+                )
+            )
+
+        lead_subquery = lead_query.subquery()
+
+        # Total leads
+        total_created_stmt = (
+            select(func.count(distinct(lead_subquery.c.id)))
+        )
+
+        # Assigned leads
+        total_assigned_stmt = (
+            select(func.count(distinct(LeadAssignment.lead_id)))
+            .join(
+                lead_subquery,
+                lead_subquery.c.id == LeadAssignment.lead_id
+            )
+            .where(
                 LeadAssignment.is_deleted == False
             )
-        elif admin_id:
-            # Fallback to general administrative tenant perimeter checks
-            stmt = stmt.where(LeadResponse.admin_id == admin_id)
-        else:
-            # Prevent open table scanning if parameters are accidentally omitted
-            return {
-                "total_created": 0, "total_assigned": 0, "total_contacted": 0,
-                "total_interested": 0, "total_converted": 0
-            }
+        )
 
-        # 4. Execute single optimized database roundtrip fetch
-        result = await db.execute(stmt)
-        row = result.fetchone()
+        # Contacted leads
+        total_contacted_stmt = (
+            select(func.count(distinct(LeadStatusHistory.lead_id)))
+            .join(
+                lead_subquery,
+                lead_subquery.c.id == LeadStatusHistory.lead_id
+            )
+            .where(
+                LeadStatusHistory.status == "Contacted",
+                LeadStatusHistory.is_deleted == False
+            )
+        )
 
-        # Return results as a clean dictionary map matching your requirements
+        # Interested leads
+        total_interested_stmt = (
+            select(func.count(distinct(LeadStatusHistory.lead_id)))
+            .join(
+                lead_subquery,
+                lead_subquery.c.id == LeadStatusHistory.lead_id
+            )
+            .where(
+                LeadStatusHistory.status == "Interested",
+                LeadStatusHistory.is_deleted == False
+            )
+        )
+
+        # Converted leads
+        total_converted_stmt = (
+            select(func.count(distinct(LeadStatusHistory.lead_id)))
+            .join(
+                lead_subquery,
+                lead_subquery.c.id == LeadStatusHistory.lead_id
+            )
+            .where(
+                LeadStatusHistory.status == "Converted",
+                LeadStatusHistory.is_deleted == False
+            )
+        )
+
+        total_created = (await db.execute(total_created_stmt)).scalar() or 0
+        total_assigned = (await db.execute(total_assigned_stmt)).scalar() or 0
+        total_contacted = (await db.execute(total_contacted_stmt)).scalar() or 0
+        total_interested = (await db.execute(total_interested_stmt)).scalar() or 0
+        total_converted = (await db.execute(total_converted_stmt)).scalar() or 0
+
         return {
-            "total_created": row.total_created or 0,
-            "total_assigned": row.total_assigned or 0,
-            "total_contacted": row.total_contacted or 0,
-            "total_interested": row.total_interested or 0,
-            "total_converted": row.total_converted or 0
+            "total_created": total_created,
+            "total_assigned": total_assigned,
+            "total_contacted": total_contacted,
+            "total_interested": total_interested,
+            "total_converted": total_converted,
         }
-
-
-
     
+
+    async def update_the_remarks_data(db, lead_id, remark_id, data, user_id, admin_id):
+        stmt = (select(LeadRemarks).where(LeadRemarks.id == remark_id, LeadRemarks.for_lead == lead_id))
+        result = await db.execute(stmt)
+        remark = result.scalar_one_or_none()
+        old_data = remark.to_dict()
+        if not remark:
+            raise HTTPException(status_code=404, detail="Remark not found with provided remark id")
+        if data.remarks:
+            remark.remarks = data.remarks
+
+        if data.is_completed is not None:
+            remark.is_completed = data.is_completed
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Remarks",
+            entity_id = remark_id,
+            log_type = "Update",
+            prev_data = old_data,
+            new_data =  {"remarks" : data.remarks, "is_completed" : data.is_completed},
+            added_by = user_id,
+            admin_id = admin_id
+        )
+        await db.commit()
+        await db.refresh(remark)
+        return remark
+    
+
+    async def mark_remarks_data_completed(db, lead_id, remark_id, user_id, admin_id):
+        stmt = (select(LeadRemarks).where(LeadRemarks.for_lead == lead_id, LeadRemarks.id == remark_id))
+        result = await db.execute(stmt)
+        remark = result.scalar_one_or_none()
+        if not remark:
+            raise HTTPException(status_code=404, detail="Remark not found with provided remark id")
+        remark.is_completed = True
+        await db.commit()
+        await db.refresh(remark)
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Remarks",
+            entity_id = remark_id,
+            log_type = "Update",
+            prev_data = {"is_completed" : False},
+            new_data =  {"is_completed" : True},
+            added_by = user_id,
+            admin_id = admin_id
+        )
+        return remark
+    
+
+    async def mark_delete_remark_data(db, lead_id, remark_id, user_id, admin_id):
+        stmt = (select(LeadRemarks).where(LeadRemarks.for_lead == lead_id, LeadRemarks.id == remark_id))
+        result = await db.execute(stmt)
+        remark = result.scalar_one_or_none()
+        if not remark:
+            raise HTTPException(status_code=404, detail="Remark not found with provided remark id")
+        remark.is_deleted = True
+        remark.is_completed = True
+        await db.commit()
+        await db.refresh(remark)
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Remarks",
+            entity_id = remark_id,
+            log_type = "Update",
+            prev_data = {"is_completed" : False},
+            new_data =  {"is_completed" : True},
+            added_by = user_id,
+            admin_id = admin_id
+        )
+        return remark
+    
+
+
+
+

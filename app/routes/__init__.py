@@ -52,6 +52,7 @@ class APIMiddleware(BaseHTTPMiddleware):
             "/api/admin/public",
             "/api/form/public",
             "/api/users/public",
+            "/api/users/public/refresh",
             "/api/lead/add",
             "/send-test-email",
             "/docs",
@@ -86,7 +87,7 @@ class APIMiddleware(BaseHTTPMiddleware):
             db = AsyncSessionLocal()
             try:
                 user_data = await Users.get_by_email(db, userEmail)
-                print("user_data  ", user_data)
+                # print("user_data  ", user_data)
                 return user_data  
             finally:
                 await db.close()

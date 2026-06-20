@@ -2,17 +2,17 @@ from fastapi import Request, Response, HTTPException, status
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import update
 from app.core.utils_functions import generate_id, generate_alphanumeric_password
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from datetime import datetime, timedelta
 from app.core.auth import create_auth_token
 from dotenv import load_dotenv
 from app.models.user_model import Users
 from app.core.hash import hash_password, verify_password
 from app.models.address_model import Address
-# from app.templates.send_template_mail import MailTemplatesService
-# from app.backgroundTasks.MonitorAsync import MonitorAsync
+from app.models.audit_model import AuditLogs
+from app.templates.send_template_mail import MailTemplatesService
+from app.backgroundTasks.MonitorAsync import MonitorAsync
 from app.schemas.User_schemas import UserCreate, UserUpdate
 import traceback
 import os
@@ -34,6 +34,7 @@ class AssistantService:
             # temp_password = generate_alphanumeric_password()
             temp_password = "qwerty123"
             hashed_password = hash_password(temp_password)
+            logger.info("AssistantService: Assistant passed hashed successfully.")
             new_assistant = Users(
                 user_id = generate_id(data.name),
                 name = data.name,
@@ -57,13 +58,23 @@ class AssistantService:
             await db.commit()
             logger.info("AssistantService: New user assistant is added successfully")
             await db.refresh(new_assistant, ["address"])
-            # MonitorAsync.deferred(
-            #     MailTemplatesService.send_credentials_template,
-            #     new_assistant.email,
-            #     new_assistant.fname,
-            #     "assistant",
-            #     temp_password,
-            # )
+            await AuditLogs.add_audit_log(
+                db =db,
+                entity_name="Assistant",
+                entity_id = new_assistant.user_id,
+                log_type = "ADD",
+                prev_data = None,
+                new_data = new_assistant.to_dict(),
+                added_by = admin_id,
+                admin_id = admin_id
+            )
+            MonitorAsync.deferred(
+                MailTemplatesService.send_credentials_template,
+                new_assistant.email,
+                new_assistant.name,
+                "assistant",
+                temp_password,
+            )
             return new_assistant
         
         except IntegrityError as e:
@@ -86,6 +97,7 @@ class AssistantService:
     @classmethod
     async def update_assistant(cls, db, user_id: str, data: UserUpdate, request: Request):
         assistant = await Users.get_by_id_with_address(db, user_id)
+        old_data_snapshot = assistant.to_dict()
         if not assistant:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
@@ -113,6 +125,17 @@ class AssistantService:
                 
                 for field, value in address_update_data.items():
                     setattr(assistant.address, field, value)
+
+            await AuditLogs.add_audit_log(
+                db = db,
+                entity_name="Assistant",
+                entity_id = user_id,
+                log_type = "Update",
+                prev_data = old_data_snapshot,
+                new_data = data.model_dump(mode="json"),
+                added_by = user_id,
+                admin_id = assistant.admin_id
+            )
 
             await db.commit()
             await db.refresh(assistant, ["address"])
@@ -149,7 +172,7 @@ class AssistantService:
         )
         result = await db.execute(query_stmt)
         assistants = result.scalars().all()
-        
+        logger.info("AssistantService: all assistant with pagination returned successfully.")
         return assistants, total_count
 
 
@@ -162,25 +185,27 @@ class AssistantService:
         assistant.is_active = False
         await db.commit()
         await db.refresh(assistant)
+        logger.info("AssistantService: Assistant account deleted successfully.")
         return {
             "message": "Assistant is deleted and deactivated successfully."
         }
 
 
-    @classmethod
-    async def assign_new_admin_to_assistants(cls, db, old_admin_id, new_admin_id):
-        stmt = (
-            update(Users)
-            .where(Users.admin_id == old_admin_id, Users.is_deleted == False)
-            .values(admin_id=new_admin_id)
-        )
-        result = await db.execute(stmt)
-        if result.rowcount == 0:
-            return {"message": "No assistants found for this admin."}
-        await db.commit()
-        return {
-            "message": f"Admin ID updated for {result.rowcount} assistant(s)."
-        }
+    # @classmethod
+    # async def assign_new_admin_to_assistants(cls, db, old_admin_id, new_admin_id):
+    #     stmt = (
+    #         update(Users)
+    #         .where(Users.admin_id == old_admin_id, Users.is_deleted == False)
+    #         .values(admin_id=new_admin_id)
+    #     )
+    #     result = await db.execute(stmt)
+    #     logger.info("AssistantService: Assign new admin inplace of old admin to all assistant.")
+    #     if result.rowcount == 0:
+    #         return {"message": "No assistants found for this admin."}
+    #     await db.commit()
+    #     return {
+    #         "message": f"Admin ID updated for {result.rowcount} assistant(s)."
+    #     }
 
 
     @classmethod
@@ -191,6 +216,17 @@ class AssistantService:
         assistant.is_active = True
         await db.commit()
         await db.refresh(assistant)
+        await AuditLogs.add_audit_log(
+                db = db,
+                entity_name="Assistant",
+                entity_id = assistant.user_id,
+                log_type = "Update",
+                prev_data = {"is_active": assistant.is_active},
+                new_data = {"is_active": True},
+                added_by = assistant.user_id,
+                admin_id = assistant.admin_id
+            )
+        logger.info("AssistantService: Assistant account activated Successfully.")
         return {
             "message": "Assistant account activated successfully."
         }
@@ -204,9 +240,26 @@ class AssistantService:
         assistant.is_active = False
         await db.commit()
         await db.refresh(assistant)
+        await AuditLogs.add_audit_log(
+                db = db,
+                entity_name="Assistant",
+                entity_id = assistant.user_id,
+                log_type = "Update",
+                prev_data = {"is_active": assistant.is_active},
+                new_data = {"is_active": False},
+                added_by = assistant.user_id,
+                admin_id = assistant.admin_id
+            )
+        logger.info("AssistantService: Assistant account deactivated Successfully.")
         return {
             "message":"Assistant account deactivated successfully."
         }
 
 
-
+    @classmethod
+    async def get_name_id(cls, db, admin_id):
+        stmt = (select(Users.name, Users.user_id).where(Users.admin_id == admin_id, Users.role == "assistant", Users.is_deleted == False))
+        result = await db.execute(stmt)
+        return result.all()
+    
+    

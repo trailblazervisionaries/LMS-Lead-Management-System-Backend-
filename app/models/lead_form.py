@@ -15,6 +15,25 @@ class FormTemplate(Base):
 
     admin = relationship("Users", back_populates="form")
 
+    
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = set()
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
+
     @classmethod
     async def get_form_by_id(cls, db, form_id):
         stmt = select(FormTemplate).where(FormTemplate.id == form_id)
@@ -35,7 +54,6 @@ class FormTemplate(Base):
         return result.scalars().all()
 
 
-# status ->> Converted, Pending, InDiscussion, Rejected
 
 class LeadResponse(Base):
     __tablename__ = "lead_responses"
@@ -53,16 +71,35 @@ class LeadResponse(Base):
         "LeadRemarks", 
         back_populates="lead", 
         cascade="all, delete-orphan", 
-        order_by="desc(LeadRemarks.created_at)" # FIXED: String or name reference preferred here
+        order_by="desc(LeadRemarks.created_at)"
     )
-    assignments = relationship("LeadAssignment", back_populates="lead")
+    assignments = relationship("LeadAssignment", back_populates="lead", cascade="all, delete-orphan")
     status_history = relationship(
         "LeadStatusHistory", 
         back_populates="lead", 
+        cascade="all, delete-orphan",
+        passive_deletes=True,
         order_by="LeadStatusHistory.created_at"
     )
 
 
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = set()
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
 
     @classmethod
     async def get_lead(cls, db, admin_id, email=None, phone=None):
@@ -131,12 +168,10 @@ class LeadResponse(Base):
     @classmethod
     async def get_all_by_admin_id(cls, db, admin_id, page=1, size=20):
         offset = (page - 1) * size
-        
-        # 1. Query to fetch Leads along with their active Assistant relationship
+
         stmt = (
             select(LeadResponse)
             .where(LeadResponse.admin_id == admin_id, LeadResponse.is_deleted == False)
-            # Eagerly load assignments and their nested assistant users to prevent N+1 queries
             .options(
                 selectinload(LeadResponse.assignments).selectinload(LeadAssignment.assistant)
             )
@@ -148,23 +183,18 @@ class LeadResponse(Base):
         result = await db.execute(stmt)
         leads = result.scalars().all()
 
-        # 2. Get total counts for pagination
         count_stmt = select(func.count(LeadResponse.id)).where(
             LeadResponse.admin_id == admin_id, 
-            LeadResponse.is_deleted == False
+            LeadResponse.is_deleted == False  
         )
         total_count = (await db.execute(count_stmt)).scalar() or 0
 
-        # 3. Format payload payload structure
         formatted_items = []
         for lead in leads:
-            # Filter for active, non-deleted assignments
             active_assignments = [a for a in lead.assignments if not a.is_deleted]
             
-            # Get the latest active assistant if assigned
             assigned_assistant = None
             if active_assignments:
-                # Sort by created_at to get the most recent assignment if multiple exist
                 latest_assignment = sorted(active_assignments, key=lambda x: x.created_at, reverse=True)[0]
                 assistant_user = latest_assignment.assistant
                 
@@ -172,7 +202,7 @@ class LeadResponse(Base):
                     assigned_assistant = {
                         "assignment_id": latest_assignment.id,
                         "assistant_id": assistant_user.user_id,
-                        "name": getattr(assistant_user, "name", None),  # Adjust based on your Users model attributes
+                        "name": getattr(assistant_user, "name", None),  
                         "email": assistant_user.email,
                         "assigned_at": latest_assignment.created_at.isoformat() if latest_assignment.created_at else None
                     }
@@ -283,10 +313,10 @@ class LeadResponse(Base):
 
 
 class LeadRemarks(Base):
-    __tablename__ = "lead_remarks" # Fixed typo from "reamrks"
+    __tablename__ = "lead_remarks" 
     
     id = Column(String, primary_key=True)
-    for_lead = Column(String, ForeignKey("lead_responses.id"))
+    for_lead = Column(String, ForeignKey("lead_responses.id", ondelete="CASCADE"))
     remarks = Column(String, nullable=True)
     # --- FOLLOW-UP FIELDS ---
     # If this is null, it's just a note. If populated, it's a scheduled task.
@@ -299,6 +329,24 @@ class LeadRemarks(Base):
     
     lead = relationship("LeadResponse", back_populates="remarks")
 
+    
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = set()
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
 
     @classmethod
     async def get_remarks(cls, db, lead_id):
@@ -315,57 +363,77 @@ class LeadRemarks(Base):
     
     
     @classmethod
-    async def get_today_follow_ups(cls, db, start_date, admin_id: str = None, assistant_id: str = None):
+    async def get_today_follow_ups(
+        cls,
+        db,
+        start_date,
+        end_date,
+        admin_id: str = None,
+        assistant_id: str = None,
+        page: int = 1,
+        size: int = 20,
+    ):
         try:
-            parsed_date = datetime.strptime(start_date, "%d%m%Y").date()
+            start_parsed_date = datetime.strptime(start_date, "%d%m%Y").date()
+            end_parsed_date = datetime.strptime(end_date, "%d%m%Y").date()
         except ValueError:
             raise ValueError("Invalid date format. Expected 'ddmmyyyy' string (e.g., 20052026).")
 
-        # today_start = datetime.combine(datetime.utcnow().date(), time.min)
-        from_date = datetime.combine(parsed_date, time.min)
-        today_end = datetime.combine(datetime.utcnow().date(), time.max)
+        from_date = datetime.combine(start_parsed_date, time.min)
+        end_date_time = datetime.combine(end_parsed_date, time.max)
 
-        # Start query from LeadRemarks
+        offset = (page - 1) * size
+
         query = (
             select(LeadRemarks)
             .join(LeadResponse, LeadRemarks.for_lead == LeadResponse.id)
             .options(joinedload(LeadRemarks.lead))
         )
 
-        # Basic filters: Today's date, not completed, not deleted
         filters = [
             LeadRemarks.next_follow_up_date >= from_date,
-            LeadRemarks.next_follow_up_date <= today_end,
+            LeadRemarks.next_follow_up_date <= end_date_time,
             LeadRemarks.is_completed == False,
-            LeadRemarks.is_deleted == False
+            LeadRemarks.is_deleted == False,
         ]
-
-        if admin_id:
-            filters.append(LeadResponse.admin_id == admin_id)
 
         if assistant_id:
             query = query.join(LeadAssignment, LeadResponse.id == LeadAssignment.lead_id)
             filters.append(LeadAssignment.assistant_id == assistant_id)
             filters.append(LeadAssignment.is_deleted == False)
 
-        query = query.where(and_(*filters)).order_by(LeadRemarks.next_follow_up_date.asc())
+        if admin_id:
+            filters.append(LeadResponse.admin_id == admin_id)
+
+        count_stmt = (
+            select(func.count(LeadRemarks.id))
+            .select_from(LeadRemarks)
+            .join(LeadResponse, LeadRemarks.for_lead == LeadResponse.id)
+            .where(and_(*filters))
+        )
+        total_count = (await db.execute(count_stmt)).scalar() or 0
+
+        query = query.where(and_(*filters)).order_by(LeadRemarks.next_follow_up_date.asc()).offset(offset).limit(size)
 
         result = await db.execute(query)
-        return result.scalars().unique().all()
+        items = result.scalars().unique().all()
+
+        return {
+            "items": items,
+            "total_count": total_count,
+        }
     
 
 class LeadStatusHistory(Base):
     __tablename__ = "lead_status_history"
 
     id = Column(String, primary_key=True)
-    lead_id = Column(String, ForeignKey("lead_responses.id"), nullable=False)
+    lead_id = Column(String, ForeignKey("lead_responses.id", ondelete="CASCADE"), nullable=False)
     # The status at this point (e.g., "Created", "Assigned", "Contacted", "Interested", "Converted")
     status = Column(String, nullable=False)
-    # Optional: Track who made the change (the Admin or Assistant)
     changed_by = Column(String, ForeignKey("users.user_id"), nullable=True)
     
     is_deleted = Column(Boolean, default = False)
-    # This creates your "1 April 2026", "2 April 2026" timeline
     created_at = Column(DateTime, default=datetime.utcnow)
 
     lead = relationship("LeadResponse", back_populates="status_history")
@@ -378,6 +446,24 @@ class LeadStatusHistory(Base):
         result = await db.execute(stmt)
         return result.scalars().all()
     
+    
+    def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = set()
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue
+                
+            value = getattr(self, column.name)
+            
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value
+                
+        return result
 
 
 
@@ -387,7 +473,7 @@ class LeadAssignment(Base):
     __tablename__ = "lead_assignments"
 
     id = Column(String, primary_key=True)
-    lead_id = Column(String, ForeignKey("lead_responses.id"), nullable=False)
+    lead_id = Column(String, ForeignKey("lead_responses.id", ondelete="CASCADE"), nullable=False)
     assistant_id = Column(String, ForeignKey("users.user_id"), nullable=False)
     is_deleted = Column(Boolean, default = False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -397,6 +483,19 @@ class LeadAssignment(Base):
     lead = relationship("LeadResponse", back_populates="assignments")
     assistant = relationship("Users") 
 
+    
+    def to_dict(self, exclude=None):
+        result = {}
+        for column in self.__table__.columns:
+            if column.name in exclude:
+                continue  
+            value = getattr(self, column.name)
+            # Convert datetime objects to string format
+            if isinstance(value, datetime):
+                result[column.name] = value.isoformat()
+            else:
+                result[column.name] = value     
+        return result
 
     @classmethod
     async def get_assistant_by_lead_id(cls, db, lead_id):
@@ -405,8 +504,8 @@ class LeadAssignment(Base):
         return result.scalar_one_or_none()
 
     @classmethod
-    async def get_by_lead_id(db, lead_id):
-        stmt = select(LeadAssignment).where(LeadAssignment.lead_id, LeadAssignment.is_deleted == False)
+    async def get_by_lead_id(cls, db, lead_id):
+        stmt = select(LeadAssignment).where(LeadAssignment.lead_id == lead_id, LeadAssignment.is_deleted == False)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -424,7 +523,6 @@ class LeadAssignment(Base):
                 )
             )
         )
-        
         result = await db.execute(stmt)
         return result.scalars().all()
 
@@ -535,3 +633,7 @@ class LeadAssignment(Base):
             "size": size,
             "total_pages": (total_count + size - 1) // size if total_count else 0,
         }
+
+
+        
+        

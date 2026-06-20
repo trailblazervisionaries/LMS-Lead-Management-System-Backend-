@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.core.utils_functions import generate_id
 from app.models.lead_form import FormTemplate
+from app.models.audit_model import AuditLogs
 import logging
 import os
 from dotenv import load_dotenv
@@ -25,8 +26,19 @@ class FormService:
             schema_definition=data.schema_definition,
         )
         db.add(new_template)
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name="Form",
+            entity_id = new_template.id,
+            log_type = "Add",
+            prev_data = None,
+            new_data = new_template.to_dict(),
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         await db.commit()
         await db.refresh(new_template)
+        logger.info("FormService: lead form created successfully.")
         return new_template
 
     @classmethod
@@ -40,6 +52,7 @@ class FormService:
     @classmethod
     async def update_the_lead_form(cls, db: Session, template_id: str, data, admin_id: str):
         existing_template = await FormTemplate.get_form_by_id(db, template_id)
+        old_data = existing_template.to_dict()
         if not existing_template or existing_template.admin_id != admin_id:
             raise HTTPException(status_code=404, detail="Form template not found")
 
@@ -47,9 +60,19 @@ class FormService:
             existing_template.schema_definition = data.schema_definition
         if data.is_active is not None:
             existing_template.is_active = data.is_active
-
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Form",
+            entity_id = template_id,
+            log_type = "Update",
+            prev_data = old_data,
+            new_data =  data.schema_definition,
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         await db.commit()
         await db.refresh(existing_template)
+        logger.info("FormService: Lead form template updated successfully.")
         return existing_template
     
     
@@ -62,8 +85,19 @@ class FormService:
         if form_avl:
             raise HTTPException(400, "Other Template Form already active without deactivating other you can't activate this one.")
         template.is_active = True
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Form",
+            entity_id = template_id,
+            log_type = "Update",
+            prev_data = {"is_active": False},
+            new_data =  {"is_active" : True},
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         await db.commit()
         await db.refresh(template)
+        logger.info("FormService: from marked activated successfully")
         return template
     
 
@@ -75,26 +109,59 @@ class FormService:
         template.is_active = False
         await db.commit()
         await db.refresh(template)
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Form",
+            entity_id = template_id,
+            log_type = "Update",
+            prev_data = {"is_active": True},
+            new_data =  {"is_active" : False},
+            added_by = admin_id,
+            admin_id = admin_id
+        )
+        logger.info("FormService: from marked seactiveted")
         return template
     
 
     @classmethod
     async def delete_form_by_admin_id(cls, db: Session, template_id: str, admin_id: str):
         template = await FormTemplate.get_form_by_id(db, template_id)
+        old_data= template.to_dict()
         if not template or template.admin_id != admin_id:
             raise HTTPException(status_code=404, detail="Form template not found")
         await db.delete(template)
         await db.commit()
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Form",
+            entity_id = template_id,
+            log_type = "Delete",
+            prev_data = old_data,
+            new_data =  None,
+            added_by = admin_id,
+            admin_id = admin_id
+        )
         return {"detail": f"Form template {template_id} deleted successfully"}
     
     
     @classmethod
     async def delete_form_by_template_id(cls, db: Session, template_id: str):
         template = await FormTemplate.get_form_by_id(db, template_id)
+        old_data= template.to_dict()
         if not template:
             raise HTTPException(status_code=404, detail="Form template not found")
         await db.delete(template)
         await db.commit()
+        await AuditLogs.add_audit_log(
+            db = db,
+            entity_name = "Form",
+            entity_id = template_id,
+            log_type = "Delete",
+            prev_data = old_data,
+            new_data =  {"is_deleted" : True},
+            added_by = template.admin_id,
+            admin_id = template.admin_id
+        )
         return {"detail": f"Form template {template_id} deleted successfully"}
 
 
@@ -121,7 +188,8 @@ class FormService:
     async def render_embed_loader_script(cls, db: Session, admin_id: str, template_id: str):
         template = await FormTemplate.get_form_by_id(db, template_id)
         if not template or not template.is_active:
-            return HTMLResponse("<p>Form not found</p>", status_code=404)
+            # return HTMLResponse("<p>Form not found</p>", status_code=404)
+            return HTMLResponse("<p>Sorry :( ,Form Template with Provided Template Id Not Found.</p>", media_type="application/javascript")
 
         schema = template.schema_definition or {}
         backend_url = (BACKEND_BASE_URL).rstrip("/")
