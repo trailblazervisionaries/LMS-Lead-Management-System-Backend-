@@ -2,9 +2,8 @@ from fastapi import Request, Response, HTTPException, status
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import update
 from app.core.utils_functions import generate_id, generate_alphanumeric_password
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from datetime import datetime, timedelta
 from app.core.auth import create_auth_token
 from dotenv import load_dotenv

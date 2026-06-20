@@ -118,12 +118,16 @@ class LeadService:
     
     @classmethod
     async def update_lead_response_data(cls, db, lead_id, user_id, data):
+        print(lead_id, user_id, data)
         stmt = select(LeadResponse).where(LeadResponse.id == lead_id, LeadResponse.is_deleted == False)
         result = await db.execute(stmt)
         lead = result.scalar_one_or_none()
-        old_data = lead.to_dict()
         if not lead:
-            raise HTTPException("LeadService: Lead data not found for the provided lead_id.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="LeadService: Lead data not found for the provided lead_id."
+            )
+        old_data = lead.to_dict()
         if data.submitted_data is not None:
             lead.submitted_data = data.submitted_data
         await db.commit()

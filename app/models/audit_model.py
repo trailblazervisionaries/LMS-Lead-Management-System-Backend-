@@ -21,23 +21,40 @@ class AuditLogs(Base):
 
     @classmethod
     async def add_audit_log(cls, db, entity_name, entity_id, log_type, prev_data, new_data, added_by, admin_id):
-        new_audit = AuditLogs(
-            id = generate_id(admin_id),
-            entity_name = entity_name,
-            entity_id = entity_id,
-            log_type = log_type,
-            prev_data = prev_data,
-            new_data = new_data,
-            added_by = added_by,
-            admin_id = admin_id
-        )
-        db.add(new_audit)
-        await db.commit()
-        await db.refresh(new_audit)
-        logger.info("AuditLogs: new log added successfully.")
-        return {
-            "message" : "New audit data added successfully."
-        }
+        try:
+            # Ensure prev_data and new_data are dictionaries (not None or other types)
+            if prev_data is None:
+                prev_data = {}
+            if new_data is None:
+                new_data = {}
+            
+            # Ensure they are actually dict types
+            if not isinstance(prev_data, dict):
+                prev_data = {"value": str(prev_data)}
+            if not isinstance(new_data, dict):
+                new_data = {"value": str(new_data)}
+            
+            new_audit = AuditLogs(
+                id = generate_id(admin_id),
+                entity_name = entity_name,
+                entity_id = entity_id,
+                log_type = log_type,
+                prev_data = prev_data,
+                new_data = new_data,
+                added_by = added_by,
+                admin_id = admin_id
+            )
+            db.add(new_audit)
+            await db.commit()
+            await db.refresh(new_audit)
+            logger.info(f"AuditLogs: new log added successfully for {entity_name} ({entity_id})")
+            return {
+                "message" : "New audit data added successfully."
+            }
+        except Exception as e:
+            logger.error(f"AuditLogs: Error adding audit log for {entity_name}: {str(e)}")
+            await db.rollback()
+            raise
 
 
     @staticmethod

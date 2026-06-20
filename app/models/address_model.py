@@ -25,6 +25,8 @@ class Address(Base):
 
 
     def to_dict(self, exclude=None):
+        if exclude is None:
+            exclude = set()
         result = {}
         for column in self.__table__.columns:
             if column.name in exclude:

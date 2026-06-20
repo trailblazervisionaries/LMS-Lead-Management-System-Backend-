@@ -38,12 +38,12 @@ async def upload_excel_leads(
     )
 
 
-@router.put("update/lead-response/{lead_id}", response_model=LeadResponseModel)
+@router.put("/update/lead-response/{lead_id}", response_model=LeadResponseModel)
 async def update_lead_response(request: Request, data: UpdateLead, lead_id: str, db: Session = Depends(get_db)):
     role = request.state.user.role
     if role not in {"assistant", "admin"}:
         raise HTTPException(403, "You don not have any such authority to make changes.")
-    result = LeadService.update_lead_response_data(db, lead_id, request.state.user.user_id, data)
+    result = await LeadService.update_lead_response_data(db, lead_id, request.state.user.user_id, data)
     return LeadResponseModel.model_validate(result)
 
 @router.get("/fetch/{lead_id}", response_model = LeadResponseModel)
@@ -121,7 +121,7 @@ async def delete_lead_data(lead_id: str, request: Request, db: Session = Depends
     return result
 
 
-@router.delete("assistant/mark-del/{lead_id}")
+@router.delete("/assistant/mark-del/{lead_id}")
 async def mark_delete_lead_data(lead_id: str, request: Request, db: Session = Depends(get_db)):
     role = request.state.user.role
     if role not in {"assistant", "admin"}:
