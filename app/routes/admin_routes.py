@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, Form
 from app.config.database import get_db
 from app.services.admin_service import AdminService
+from app.services.file_service import FileUploadService
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.schemas.User_schemas import UserCreate, UserUpdate, UserPaginationResponse, UserResponse
 import logging 
@@ -41,9 +42,29 @@ async def deleted_assistant_account(request: Request, admin_id: str, db: Session
     return AdminService.delete_admin_account_by_id(db, admin_id)
 
 
+@router.post("/upload-docs/{admin_id}")
+async def upload_profile(
+    request: Request,
+    admin_id: str,
+    name: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if request.state.user.role != "admin":
+        raise HTTPException(403, "You do not have permission to perform this operation.")
+    logged_user_id = request.state.user.user_id
+    return await FileUploadService.upload_profile_image(db, file, logged_user_id, admin_id, name, request)
 
-
-
+@router.get("/http://localhost:8000/api/admin/profile-image/abca2550924174/{admin_id}")
+async def get_profile_image(
+    request: Request,
+    admin_id: str,
+    db: Session = Depends(get_db),
+):
+    response = await FileUploadService.get_profile_image_buffer(db, request, admin_id)
+    if not response:
+        raise HTTPException(status_code=404, detail="Image not found in storage")
+    return response
 
 
 

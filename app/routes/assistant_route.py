@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query, UploadFile, Form, File
 from app.config.database import get_db
 from app.services.assistant_service import AssistantService
+from app.services.file_service import FileUploadService
 from sqlalchemy.ext.asyncio import AsyncSession as Session
 from app.schemas.User_schemas import UserCreate, UserUpdate, UserPaginationResponse, UserResponse, AssistantNameIdResponse
 import logging 
@@ -99,3 +100,27 @@ async def get_all_the_assistant_name_id(request: Request, admin_id: str, db: Ses
     assistants = await AssistantService.get_name_id(db, admin_id)
     return [AssistantNameIdResponse.model_validate(assistant) for assistant in assistants]
 
+@router.post("/upload-docs/{assistant_id}")
+async def upload_profile(
+    request: Request,
+    assistant_id: str,
+    name: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if request.state.user.role != "assistant":
+        raise HTTPException(403, "You do not have permission to perform this operation.")
+    logged_user_id = request.state.user.user_id
+    return await FileUploadService.upload_profile_image(db, file, logged_user_id, assistant_id, name, request)
+
+
+@router.get("/profile-image/{assistant_id}")
+async def get_profile_image(
+    request: Request,
+    assistant_id: str,
+    db: Session = Depends(get_db),
+):
+    response = await FileUploadService.get_profile_image_buffer(db, request, assistant_id)
+    if not response:
+        raise HTTPException(status_code=404, detail="Image not found in storage")
+    return response
